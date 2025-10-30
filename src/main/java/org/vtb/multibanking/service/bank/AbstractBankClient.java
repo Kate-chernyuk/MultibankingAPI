@@ -169,10 +169,6 @@ public abstract class AbstractBankClient implements BankClient{
     public List<Account> fetchAccounts() throws Exception {
         Optional<String> activeConsent = consentService.getActiveConsentId(getBankType(), clientId+"-2");
         if (activeConsent.isEmpty()) {
-           createConsent();
-        }
-
-        if (activeConsent.isEmpty()) {
             createConsent();
 
             activeConsent = consentService.getActiveConsentId(getBankType(), clientId+"-2");
