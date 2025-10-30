@@ -7,7 +7,6 @@ import org.vtb.multibanking.model.Account;
 import org.vtb.multibanking.model.AccountIdentification;
 import org.vtb.multibanking.model.Amount;
 import org.vtb.multibanking.model.Balance;
-import org.vtb.multibanking.repository.ConsentRepository;
 import org.vtb.multibanking.service.ConsentService;
 
 import java.time.Instant;
@@ -26,9 +25,9 @@ public abstract class AbstractBankClient implements BankClient{
     private String currentToken;
     private Instant tokenExpiresAt;
 
-    private ConsentService consentService;
+    private final ConsentService consentService;
     private String consent;
-    private String requestToConsent;
+    private String requestToConsent = null;
 
     public AbstractBankClient(String baseUrl, String clientId, String clientSecret, ConsentService consentService) {
         this.baseUrl = baseUrl;
@@ -39,7 +38,7 @@ public abstract class AbstractBankClient implements BankClient{
         this.restTemplate.setErrorHandler(new DefaultResponseErrorHandler());
     }
 
-    protected String getToken() throws Exception {
+    protected String getToken() {
         if (currentToken != null && tokenExpiresAt != null && Instant.now().isBefore(tokenExpiresAt)) {
             return currentToken;
         }

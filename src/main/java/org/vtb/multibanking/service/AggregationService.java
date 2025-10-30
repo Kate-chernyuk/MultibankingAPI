@@ -32,7 +32,7 @@ public class AggregationService {
     public AggregationResult aggregateAccounts(String clientId) {
         List<CompletableFuture<List<Account>>> futures = bankClients.stream()
                 .map(client -> getAccountsAsync(client, clientId))
-                .collect(Collectors.toList());
+                .toList();
 
         List<Account> allAccounts = new ArrayList<>();
         Map<BankType, BigDecimal> balanceByBank = new HashMap<>();
@@ -83,7 +83,7 @@ public class AggregationService {
             }
         }
 
-        AggregationResult result = AggregationResult.builder()
+        return AggregationResult.builder()
                 .success(true)
                 .clientId(clientId)
                 .totalBalance(totalBalance)
@@ -95,8 +95,6 @@ public class AggregationService {
                 .accounts(allAccounts)
                 .timestamp(Instant.now())
                 .build();
-
-        return result;
     }
 
     private CompletableFuture<List<Account>> getAccountsAsync(BankClient client, String clientId) {
