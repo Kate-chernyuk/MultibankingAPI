@@ -1,0 +1,38 @@
+server:
+  port: 8090
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/multibanking
+      auto-index-creation: true
+    redis:
+      host: localhost
+      port: 6379
+  cache:
+    type: redis
+  application:
+    name: multibanking-api
+
+bank:
+  apis:
+    vbank:
+      base-url: https://vbank.open.bankingapi.ru
+      client-id: team086
+      client-secret: muFbqqTahK0eX4H9O4J9W7BpcsQWLBFv
+    abank:
+      base-url: https://abank.open.bankingapi.ru
+      client-id: team086
+      client-secret: muFbqqTahK0eX4H9O4J9W7BpcsQWLBFv
+    sbank:
+      base-url: https://sbank.open.bankingapi.ru
+      client-id: team086
+      client-secret: muFbqqTahK0eX4H9O4J9W7BpcsQWLBFv
+
+logging:
+  level:
+    org.vtb.multibanking: DEBUG

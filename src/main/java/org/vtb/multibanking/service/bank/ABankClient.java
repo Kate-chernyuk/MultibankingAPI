@@ -1,0 +1,31 @@
+package org.vtb.multibanking.service.bank;
+
+import org.springframework.stereotype.Service;
+import org.vtb.multibanking.config.BankConfig;
+import org.vtb.multibanking.model.Account;
+import org.vtb.multibanking.model.BankType;
+import org.vtb.multibanking.service.ConsentService;
+
+import java.util.List;
+
+@Service
+public class ABankClient extends AbstractBankClient{
+    public ABankClient(BankConfig bankConfig, ConsentService consentService) {
+        super(
+                bankConfig.getApis().get("abank").getBaseUrl(),
+                bankConfig.getApis().get("abank").getClientId(),
+                bankConfig.getApis().get("abank").getClientSecret(),
+                consentService
+        );
+    }
+
+    @Override
+    public BankType getBankType() {
+        return BankType.ABANK;
+    }
+
+    @Override
+    public List<Account> getAccounts(String clientId) throws Exception {
+        return fetchAccounts();
+    }
+}
