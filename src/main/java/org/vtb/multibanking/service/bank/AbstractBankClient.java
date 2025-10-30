@@ -104,7 +104,6 @@ public abstract class AbstractBankClient implements BankClient{
                     System.out.println("Запрос отправлен на одобрение в банк " + getBankType().toString());
                  //   this.consent = waitForConsentApproval(30);
                     return;
-                    // TODO: реализовать получеие обратной связи от банка, что дескать, согласие подтверждено
                 }
             }
         } catch (Exception e) {
