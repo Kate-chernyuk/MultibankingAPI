@@ -15,6 +15,7 @@ public class SBankClient extends AbstractBankClient {
                 bankConfig.getApis().get("sbank").getBaseUrl(),
                 bankConfig.getApis().get("sbank").getClientId(),
                 bankConfig.getApis().get("sbank").getClientSecret(),
+                bankConfig.getApis().get("abank").getClientId() + "-1",
                 consentService
         );
     }

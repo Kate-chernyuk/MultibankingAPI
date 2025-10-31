@@ -18,20 +18,25 @@ spring:
   application:
     name: multibanking-api
 
+app:
+  scheduler:
+    enabled: true
+    cron: "0 */5 * * * *"
+
 bank:
   apis:
     vbank:
       base-url: https://vbank.open.bankingapi.ru
-      client-id: team086
-      client-secret: muFbqqTahK0eX4H9O4J9W7BpcsQWLBFv
+      client-id: ${CLIENT_ID}
+      client-secret: ${CLIENT_SECRET}
     abank:
       base-url: https://abank.open.bankingapi.ru
-      client-id: team086
-      client-secret: muFbqqTahK0eX4H9O4J9W7BpcsQWLBFv
+      client-id: ${CLIENT_ID}
+      client-secret: ${CLIENT_SECRET}
     sbank:
       base-url: https://sbank.open.bankingapi.ru
-      client-id: team086
-      client-secret: muFbqqTahK0eX4H9O4J9W7BpcsQWLBFv
+      client-id: ${CLIENT_ID}
+      client-secret: ${CLIENT_SECRET}
 
 logging:
   level:
