@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -24,6 +25,7 @@ public class Account {
     private BigDecimal currentBalance;
     private BigDecimal availableBalance;
     private Instant lastUpdated;
+    private List<Transaction> transactions = new ArrayList<>();
 
     public boolean isActive() {
         return "Enabled".equalsIgnoreCase(status);

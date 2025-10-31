@@ -3,16 +3,23 @@ package org.vtb.multibanking.controller;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.vtb.multibanking.model.Account;
 import org.vtb.multibanking.model.AggregationResult;
+import org.vtb.multibanking.model.Transaction;
 import org.vtb.multibanking.service.AggregationService;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -20,6 +27,7 @@ import java.util.Map;
 @Slf4j
 public class AggregationController {
     private final AggregationService aggregationService;
+    //TODO отделить транзакции на фронте: сейчас общим фронтом
 
     @GetMapping("/aggregate/{clientId}")
     public ResponseEntity<AggregationResult> aggregateAccounts(@PathVariable String clientId) {
@@ -50,5 +58,35 @@ public class AggregationController {
     public ResponseEntity<List<String>> getSupportedBanks() {
         List<String> banks = List.of("VBANK", "ABANK", "SBANK");
         return ResponseEntity.ok(banks);
+    }
+
+    @GetMapping("/transactions/{clientId}")
+    public ResponseEntity<Map<String, Object>> getAllUserTransactions(@PathVariable String clientId) {
+        try {
+            AggregationResult aggregationResult = aggregationService.aggregateAccounts(clientId);
+
+            List<Transaction> allTransactions = aggregationResult.getAccounts().stream()
+                    .flatMap(acc -> acc.getTransactions().stream())
+                    .sorted((t1, t2) -> t2.getBookingDateTime().compareTo(t1.getBookingDateTime()))
+                    .collect(Collectors.toList());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("transactions", allTransactions);
+            response.put("totalCount", allTransactions.size());
+            response.put("timestamp", Instant.now());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Ошибка получения всех транзакций: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+
+    @Scheduled(cron = "${app.update.cron:0 */5 * * * *}")
+    public void autoUpdate() {
+        log.info("Автообновление данных...");
+        aggregateAccounts("team086-1");
+        //TODO не забыть добавить автообновление га фронте - бек работает (см. консоль)
     }
 }

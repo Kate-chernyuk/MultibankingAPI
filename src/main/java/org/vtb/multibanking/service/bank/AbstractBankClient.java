@@ -1,12 +1,10 @@
 package org.vtb.multibanking.service.bank;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
 import org.springframework.web.client.DefaultResponseErrorHandler;
 import org.springframework.web.client.RestTemplate;
-import org.vtb.multibanking.model.Account;
-import org.vtb.multibanking.model.AccountIdentification;
-import org.vtb.multibanking.model.Amount;
-import org.vtb.multibanking.model.Balance;
+import org.vtb.multibanking.model.*;
 import org.vtb.multibanking.service.ConsentService;
 
 import java.time.Instant;
@@ -15,12 +13,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+@Slf4j
 public abstract class AbstractBankClient implements BankClient{
 
     protected final String baseUrl;
     protected final String clientId;
     protected final String clientSecret;
     protected final RestTemplate restTemplate;
+    protected final String userId;
 
     private String currentToken;
     private Instant tokenExpiresAt;
@@ -29,10 +29,11 @@ public abstract class AbstractBankClient implements BankClient{
     private String consent;
     private String requestToConsent = null;
 
-    public AbstractBankClient(String baseUrl, String clientId, String clientSecret, ConsentService consentService) {
+    public AbstractBankClient(String baseUrl, String clientId, String clientSecret, String userId, ConsentService consentService) {
         this.baseUrl = baseUrl;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
+        this.userId = userId;
         this.restTemplate = new RestTemplate();
         this.consentService = consentService;
         this.restTemplate.setErrorHandler(new DefaultResponseErrorHandler());
@@ -73,7 +74,7 @@ public abstract class AbstractBankClient implements BankClient{
         String consentUrl = baseUrl + "/account-consents/request";
 
         Map<String, Object> requestBody = Map.of(
-                "client_id", clientId + "-2",
+                "client_id", userId,
                 "permissions", List.of("ReadAccountsDetail", "ReadBalances", "ReadTransactionsDetail"),
                 "reason", "",
                 "requesting_bank", "test_bank",
@@ -95,13 +96,13 @@ public abstract class AbstractBankClient implements BankClient{
                 String status = (String) responseEntity.getBody().get("status");
                 if (status.equals("approved")) {
                     String consentId = (String) responseEntity.getBody().get("consent_id");
-                    consentService.saveConsent(getBankType(), clientId+"-2", consentId, null, "approved");
+                    consentService.saveConsent(getBankType(), userId, consentId, null, "approved");
                     System.out.println("Успешно получено согласие для банка " + getBankType().toString() + ": " + consentId);
                     return;
                 } else if (status.equals("pending")) {
-                    consentService.saveConsent(getBankType(), clientId+"-2", null, (String) responseEntity.getBody().get("request_id"), "pending");
+                    consentService.saveConsent(getBankType(), userId, null, (String) responseEntity.getBody().get("request_id"), "pending");
                     System.out.println("Запрос отправлен на одобрение в банк " + getBankType().toString());
-                 //   this.consent = waitForConsentApproval(30);
+                    //   this.consent = waitForConsentApproval(30);
                     return;
                 }
             }
@@ -131,7 +132,7 @@ public abstract class AbstractBankClient implements BankClient{
                 Map<String, Object> data = (Map<String, Object>) responseEntity.getBody().get("data");
                 if (data != null) {
                     if (data.get("status").equals("Authorized")) {
-                        consentService.updateConsentStatus(getBankType(), clientId+"-2", "Authorized", (String) data.get("consentId"));
+                        consentService.updateConsentStatus(getBankType(), userId, "Authorized", (String) data.get("consentId"));
                         return true;
                     } else {
                         System.out.println("Согласие не было предоставлено. Пожалуйста, перейдите в ЛК банка " + getBankType().toString() + " и дайте согласие");
@@ -166,11 +167,12 @@ public abstract class AbstractBankClient implements BankClient{
     }*/
 
     public List<Account> fetchAccounts() throws Exception {
-        Optional<String> activeConsent = consentService.getActiveConsentId(getBankType(), clientId+"-2");
+        this.currentToken = getToken();
+        Optional<String> activeConsent = consentService.getActiveConsentId(getBankType(), userId);
         if (activeConsent.isEmpty()) {
             createConsent();
 
-            activeConsent = consentService.getActiveConsentId(getBankType(), clientId+"-2");
+            activeConsent = consentService.getActiveConsentId(getBankType(), userId);
 
             if (activeConsent.isEmpty()) {
                 throw new Exception("Не удалось получить действующее согласие для банка " + getBankType());
@@ -183,7 +185,9 @@ public abstract class AbstractBankClient implements BankClient{
         for (Account account: accounts) {
             try {
                 List<Balance> balances = getAccountBalances(account.getAccountId());
+                List<Transaction> transactions = getAccountTransactions(account.getAccountId());
                 updateAccountWithBalances(account, balances);
+                account.getTransactions().addAll(transactions);
             } catch (Exception e) {
                 System.out.println("Ошибка при сопоставлении аккаунтов и балансов: " + e.getMessage());
                 throw e;
@@ -198,11 +202,10 @@ public abstract class AbstractBankClient implements BankClient{
             throw new Exception("Нет согласия на обработку данных из банка " + getBankType().toString());
         }
 
-        String token = getToken();
-        String accountUrl = baseUrl + "/accounts?client_id=" + clientId + "-2";
+        String accountUrl = baseUrl + "/accounts?client_id=" + userId;
 
         HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setBearerAuth(token);
+        httpHeaders.setBearerAuth(currentToken);
         httpHeaders.set("accept", "application/json");
         httpHeaders.set("x-consent-id", consent);
         httpHeaders.set("x-requesting-bank", clientId);
@@ -232,11 +235,10 @@ public abstract class AbstractBankClient implements BankClient{
     }
 
     protected List<Balance> getAccountBalances(String accountId) throws Exception {
-        String token = getToken();
         String balancesUrl = baseUrl + "/accounts/" + accountId + "/balances";
 
         HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setBearerAuth(token);
+        httpHeaders.setBearerAuth(currentToken);
         httpHeaders.set("accept", "application/json");
         httpHeaders.set("x-consent-id", consent);
         httpHeaders.set("x-requesting-bank", clientId);
@@ -260,6 +262,38 @@ public abstract class AbstractBankClient implements BankClient{
             System.out.println("Ошибка получения информации из банка " + getBankType().toString() + ": " + e.getMessage());
             throw e;
         }
+        return List.of();
+    }
+
+    protected List<Transaction> getAccountTransactions(String accountId) throws Exception {
+        String transactionUrl = baseUrl + "/accounts/" + accountId + "/transactions";
+
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.set("accept", "application/json");
+        httpHeaders.set("x-consent-id", consent);
+        httpHeaders.set("x-requesting-bank", clientId);
+
+        try {
+            ResponseEntity<Map> responseEntity = restTemplate.exchange(
+                    transactionUrl, HttpMethod.GET, new HttpEntity<>(httpHeaders), Map.class
+            );
+
+            if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
+                Map<String, Object> data = (Map<String, Object>) responseEntity.getBody().get("data");
+                if (data != null) {
+                    List<Map<String, Object>> transactionData = (List<Map<String, Object>>) data.get("transaction");
+                    if (transactionData != null) {
+                        return transactionData.stream()
+                                .map(this::mapToTransaction)
+                                .collect(Collectors.toList());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("Ошибка получения транзакций для счета " + accountId + ": " + e.getMessage());
+        }
+
         return List.of();
     }
 
@@ -319,6 +353,51 @@ public abstract class AbstractBankClient implements BankClient{
         }
 
         return balance;
+    }
+
+    private Transaction mapToTransaction(Map<String, Object> transactionData) {
+        Transaction transaction = new Transaction();
+        transaction.setAccountId((String) transactionData.get("accountId"));
+        transaction.setTransactionId((String) transactionData.get("transactionId"));
+        transaction.setCreditDebitIndicator((String) transactionData.get("creditDebitIndicator"));
+        transaction.setStatus((String) transactionData.get("status"));
+        transaction.setTransactionInformation((String) transactionData.get("transactionInformation"));
+
+        String bookingDateTimeStr = (String) transactionData.get("bookingDateTime");
+        String valueDateTimeStr = (String) transactionData.get("valueDateTime");
+
+        if (bookingDateTimeStr != null) {
+            try {
+                transaction.setBookingDateTime(Instant.parse(bookingDateTimeStr));
+            } catch (Exception e) {
+                System.out.println("Ошибка парсинга bookingDateTime: " + bookingDateTimeStr);
+            }
+        }
+
+        if (valueDateTimeStr != null) {
+            try {
+                transaction.setValueDateTime(Instant.parse(valueDateTimeStr));
+            } catch (Exception e) {
+                System.out.println("Ошибка парсинга valueDateTime: " + valueDateTimeStr);
+            }
+        }
+
+        Map<String, Object> amountData = (Map<String, Object>) transactionData.get("amount");
+        if (amountData != null) {
+            Amount amount = new Amount();
+            amount.setAmount((String) amountData.get("amount"));
+            amount.setCurrency((String) amountData.get("curremcy"));
+            transaction.setAmount(amount);
+        }
+
+        Map<String, Object> codeData = (Map<String, Object>) transactionData.get("bankTransactionCode");
+        if (codeData != null) {
+            BankTransactionCode code = new BankTransactionCode();
+            code.setCode((String) codeData.get("code"));
+            transaction.setBankTransactionCode(code);
+        }
+
+        return transaction;
     }
 
     private void updateAccountWithBalances(Account account, List<Balance> balances) {
