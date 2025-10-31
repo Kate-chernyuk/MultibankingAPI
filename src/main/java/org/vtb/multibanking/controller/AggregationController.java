@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.vtb.multibanking.model.Account;
 import org.vtb.multibanking.model.AggregationResult;
 import org.vtb.multibanking.model.Transaction;
 import org.vtb.multibanking.service.AggregationService;
@@ -18,7 +17,6 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RestController
