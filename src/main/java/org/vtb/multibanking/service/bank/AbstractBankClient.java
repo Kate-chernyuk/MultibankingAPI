@@ -411,4 +411,81 @@ public abstract class AbstractBankClient implements BankClient{
         }
     }
 
+    protected String getPaymentConsent(String debtorAccount, Integer amount) throws Exception {
+        String consentUrl = baseUrl + "payment-consents/request";
+
+        Map<String, Object> requestBody = Map.of(
+                "clientId", userId,
+                "requesting_bank", clientId,
+                "consent_type", "single_use",
+                "debtor_account", debtorAccount,
+                "amount", amount
+        );
+
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.set("accept", "application/json");
+        httpHeaders.set("x-requesting-bank", clientId);
+
+        try {
+            ResponseEntity<Map> responseEntity = restTemplate.exchange(
+                    consentUrl, HttpMethod.POST, new HttpEntity<>(requestBody, httpHeaders), Map.class
+            );
+
+            if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
+                if (responseEntity.getBody().get("status").equals("approved")) {
+                    return (String) responseEntity.getBody().get("consent_id");
+                }
+            }
+        } catch (Exception e) {
+            log.error("Не удалось получить согласие на исполнение платежа {}", e.getMessage());
+        }
+        return null;
+    }
+
+    public String createPayment(String debtorAccount, String creditorAccount, Amount amount, BankType bankType) throws Exception {
+        currentToken = getToken();
+        String consent = getPaymentConsent(debtorAccount, Integer.valueOf(amount.getAmount()));
+        String paymentUrl = baseUrl + "/payments?client_id=" + userId;
+
+        Map<String, Object> requestBody = Map.of(
+                "data", Map.of(
+                        "initiation", amount,
+                        "debtorAccount", Map.of(
+                                "schemeName", "RU.CBR.PAN",
+                                "identification", debtorAccount
+                        ),
+                        "creditorAccount", Map.of(
+                                "schemeName", "RU.CBR.PAN",
+                                "identification", creditorAccount,
+                                "bank_code", bankType != getBankType() ? bankType : null
+                        )
+                )
+        );
+
+
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.set("accept", "application/json");
+        httpHeaders.set("client_id", userId);
+        httpHeaders.set("x-requesting-bank", clientId);
+        httpHeaders.set("x-payment-consent-id", consent);
+
+        try {
+            ResponseEntity<Map> responseEntity = restTemplate.exchange(
+                    paymentUrl, HttpMethod.POST, new HttpEntity<>(requestBody, httpHeaders), Map.class
+            );
+
+            if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
+                Map<String, Object> data = (Map<String, Object>) responseEntity.getBody().get("data");
+                if (data != null) {
+                    String payment_id = (String) data.get("payment_id");
+                    return payment_id;
+                }
+            }
+        } catch (Exception e) {
+            log.error("Не удалось исполненить платёж {}", e.getMessage());
+        }
+        return null;
+    }
 }

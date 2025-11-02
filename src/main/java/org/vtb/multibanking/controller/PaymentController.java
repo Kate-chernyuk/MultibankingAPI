@@ -1,0 +1,60 @@
+package org.vtb.multibanking.controller;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.vtb.multibanking.model.Amount;
+import org.vtb.multibanking.model.BankType;
+import org.vtb.multibanking.service.bank.BankClient;
+import org.vtb.multibanking.service.bank.BankService;
+
+import java.util.Map;
+
+@Slf4j
+@RequestMapping("/api/v1/payments")
+@RequiredArgsConstructor
+@Controller
+public class PaymentController {
+
+    private final BankService bankService;
+
+    @PostMapping("/{client_id}")
+    public ResponseEntity<Map<String, Object>> createNewPayment(
+            @PathVariable String client_id,
+            @RequestBody Map<String, Object> paymentRequest) {
+        try {
+            String fromAccount = (String) paymentRequest.get("fromAccount");
+            String toAccount = (String) paymentRequest.get("toAccount");
+            BankType bankTypeTo = (BankType) paymentRequest.get("bankTypeTo");
+            BankType bankTypeFrom = (BankType) paymentRequest.get("bankTypeFrom");
+
+            Map<String, String> amountMap = (Map<String, String>) paymentRequest.get("amount");
+            Amount amount = new Amount(
+                    amountMap.get("amount"),
+                    amountMap.get("currency")
+            );
+
+            BankClient bankClient = bankService.getBankClient(bankTypeFrom);
+
+            String paymentId = bankClient.makePayment(fromAccount, toAccount, amount, bankTypeTo);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "paymentId", paymentId,
+                    "message", "Платёж успешно создан",
+                    "fromBank", bankTypeFrom,
+                    "toBank", bankTypeTo
+            ));
+        } catch (Exception e) {
+            log.error("Ошибка платежа: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
+        }
+    }
+}

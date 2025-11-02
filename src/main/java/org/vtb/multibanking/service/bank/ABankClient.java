@@ -3,6 +3,7 @@ package org.vtb.multibanking.service.bank;
 import org.springframework.stereotype.Service;
 import org.vtb.multibanking.config.BankConfig;
 import org.vtb.multibanking.model.Account;
+import org.vtb.multibanking.model.Amount;
 import org.vtb.multibanking.model.BankType;
 import org.vtb.multibanking.service.ConsentService;
 
@@ -28,5 +29,10 @@ public class ABankClient extends AbstractBankClient{
     @Override
     public List<Account> getAccounts(String clientId) throws Exception {
         return fetchAccounts();
+    }
+
+    @Override
+    public String makePayment(String debtorAccount, String creditorAccount, Amount amount, BankType bankType) throws Exception {
+        return createPayment(debtorAccount, creditorAccount, amount, bankType);
     }
 }
