@@ -488,4 +488,50 @@ public abstract class AbstractBankClient implements BankClient{
         }
         return null;
     }
+
+    public List<Product> getProductsCatalog() {
+        currentToken = getToken();
+        String catalogUrl = baseUrl + "/products";
+
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.set("accept", "application/json");
+
+        try {
+            ResponseEntity<Map> responseEntity = restTemplate.exchange(
+                    catalogUrl, HttpMethod.GET, new HttpEntity<>(httpHeaders), Map.class
+            );
+
+            if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
+                Map<String, Object> data = (Map<String, Object>) responseEntity.getBody().get("data");
+                if (data != null) {
+                    List<Map<String, Object>> productsData = (List<Map<String, Object>>) data.get("product");
+                    if (productsData != null) {
+                        return productsData.stream()
+                                .map(this::mapToProduct)
+                                .collect(Collectors.toList());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Не удалось раздобыть катоалог продуктов банка {}: {}", getBankType(), e.getMessage());
+        }
+        return List.of();
+    }
+
+    private Product mapToProduct(Map<String, Object> productData) {
+        Product product = new Product();
+
+        product.setProductId((String) productData.get("productId"));
+        product.setProductType((String) productData.get("productType"));
+        product.setProductName((String) productData.get("productName"));
+        product.setDescription((String) productData.get("description"));
+        product.setInterestRate((String) productData.get("interestRate"));
+        product.setMinAmount((String) productData.get("minAmount"));
+        product.setMaxAmount((String) productData.get("maxAmount"));
+        product.setTermMonth((Integer) productData.get("termMonths"));
+        product.setBankType(getBankType());
+
+        return product;
+    }
 }

@@ -1,21 +1,23 @@
-package org.vtb.multibanking.service.bank;
+package org.vtb.multibanking.service.bank.banks;
 
 import org.springframework.stereotype.Service;
 import org.vtb.multibanking.config.BankConfig;
 import org.vtb.multibanking.model.Account;
 import org.vtb.multibanking.model.Amount;
 import org.vtb.multibanking.model.BankType;
+import org.vtb.multibanking.model.Product;
 import org.vtb.multibanking.service.ConsentService;
+import org.vtb.multibanking.service.bank.AbstractBankClient;
 
 import java.util.List;
 
 @Service
-public class VBankClient extends AbstractBankClient{
-    public VBankClient(BankConfig bankConfig, ConsentService consentService) {
+public class SBankClient extends AbstractBankClient {
+    public SBankClient(BankConfig bankConfig, ConsentService consentService) {
         super(
-                bankConfig.getApis().get("vbank").getBaseUrl(),
-                bankConfig.getApis().get("vbank").getClientId(),
-                bankConfig.getApis().get("vbank").getClientSecret(),
+                bankConfig.getApis().get("sbank").getBaseUrl(),
+                bankConfig.getApis().get("sbank").getClientId(),
+                bankConfig.getApis().get("sbank").getClientSecret(),
                 bankConfig.getApis().get("abank").getClientId() + "-1",
                 consentService
         );
@@ -23,7 +25,7 @@ public class VBankClient extends AbstractBankClient{
 
     @Override
     public BankType getBankType() {
-        return BankType.VBANK;
+        return BankType.SBANK;
     }
 
     @Override
@@ -34,5 +36,10 @@ public class VBankClient extends AbstractBankClient{
     @Override
     public String makePayment(String debtorAccount, String creditorAccount, Amount amount, BankType bankType) throws Exception {
         return createPayment(debtorAccount, creditorAccount, amount, bankType);
+    }
+
+    @Override
+    public List<Product> listProductsCatalog() {
+        return getProductsCatalog();
     }
 }
