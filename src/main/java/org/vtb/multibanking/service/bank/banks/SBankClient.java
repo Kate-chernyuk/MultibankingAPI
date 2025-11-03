@@ -9,6 +9,7 @@ import org.vtb.multibanking.model.Product;
 import org.vtb.multibanking.service.ConsentService;
 import org.vtb.multibanking.service.bank.AbstractBankClient;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -41,5 +42,20 @@ public class SBankClient extends AbstractBankClient {
     @Override
     public List<Product> listProductsCatalog() {
         return getProductsCatalog();
+    }
+
+    @Override
+    public Boolean buyNewProduct(String productId, BigDecimal amount, String sourceAccountId) throws Exception {
+        return getProduct(productId, amount, sourceAccountId);
+    }
+
+    @Override
+    public List<Product> listClientProducts() throws Exception {
+        return getUserProductList();
+    }
+
+    @Override
+    public Boolean deleteSomeProduct(String agreementId, String repaymentAccountId, BigDecimal repaymentAmount) throws Exception{
+        return deleteProduct(agreementId, repaymentAccountId, repaymentAmount);
     }
 }

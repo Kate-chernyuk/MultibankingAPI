@@ -17,6 +17,7 @@ public class Product {
     private String maxAmount;
     private Integer termMonth;
     private BankType bankType;
+    private String agreementId;
 
     public String getFormattedInterestRate() {
         return interestRate != null ? interestRate + "%" : "—";

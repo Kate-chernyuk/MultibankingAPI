@@ -2,11 +2,13 @@ package org.vtb.multibanking.service.bank;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
+import org.springframework.security.core.parameters.P;
 import org.springframework.web.client.DefaultResponseErrorHandler;
 import org.springframework.web.client.RestTemplate;
 import org.vtb.multibanking.model.*;
 import org.vtb.multibanking.service.ConsentService;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -522,16 +524,192 @@ public abstract class AbstractBankClient implements BankClient{
     private Product mapToProduct(Map<String, Object> productData) {
         Product product = new Product();
 
-        product.setProductId((String) productData.get("productId"));
-        product.setProductType((String) productData.get("productType"));
-        product.setProductName((String) productData.get("productName"));
-        product.setDescription((String) productData.get("description"));
-        product.setInterestRate((String) productData.get("interestRate"));
-        product.setMinAmount((String) productData.get("minAmount"));
-        product.setMaxAmount((String) productData.get("maxAmount"));
-        product.setTermMonth((Integer) productData.get("termMonths"));
+        product.setProductId(productData.containsKey("productId") ? (String) productData.get("productId") : (String) productData.get("product_id"));
+        product.setProductType(productData.containsKey("productType") ? (String) productData.get("productType") : (String) productData.get("product_type"));
+        product.setProductName(productData.containsKey("productName") ? (String) productData.get("productName") : (String) productData.get("product_name"));
+        product.setDescription(productData.containsKey("description") ? (String) productData.get("description") : null);
+        product.setInterestRate(productData.containsKey("interestRate") ? (String) productData.get("interestRate") : null);
+        product.setMinAmount(productData.containsKey("minAmount") ? (String) productData.get("minAmount") : (String) Double.toString((Double) productData.get("amount")));
+        product.setMaxAmount(productData.containsKey("maxAmount") ? (String) productData.get("maxAmount") : (String) Double.toString((Double) productData.get("amount")));
+        product.setTermMonth(productData.containsKey("termMonths") ? (Integer) productData.get("termMonths") : null);
+        product.setAgreementId(productData.containsKey("agreement_id") ? (String) productData.get("agreement_id") : null);
         product.setBankType(getBankType());
 
         return product;
+    }
+
+    private void createProductAgreementConsent() throws Exception {
+        this.currentToken = getToken();
+        String consentUrl = baseUrl + "/product-agreement-consents/request?client_id=" + userId;
+
+        Map <String, Object> requestBody = Map.of(
+                "requesting_bank", clientId,
+                "client_id", userId,
+                "read_product_agreements", true,
+                "open_product_agreements", true,
+                "close_product_agreements", true,
+                "allowed_product_types", List.of("deposit", "loan", "card", "account"),
+                "max_amount", 1000000.00,
+                "reason", "Финансовый агрегатор для управления продуктами"
+        );
+
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.set("accept", "application/json");
+        httpHeaders.setContentType(MediaType.APPLICATION_JSON);
+        httpHeaders.set("client_id", userId);
+
+        try {
+            ResponseEntity<Map> responseEntity = restTemplate.exchange(
+                    consentUrl, HttpMethod.POST, new HttpEntity<>(requestBody, httpHeaders), Map.class
+            );
+
+            if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
+                String status = (String) responseEntity.getBody().get("status");
+                if ("approved".equals(status)) {
+                    String consentId = (String) responseEntity.getBody().get("consent_id");
+                    consentService.saveProductConsent(
+                            getBankType(),
+                            userId,
+                            consentId,
+                            "approved",
+                            BigDecimal.valueOf(1000000.00)
+                    );
+                    log.info("Получено продуктовое согласие для банка {} от клиента {}: {}", getBankType(), userId, consentId);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Не удалось получить продуктовое согласие для банка {} от клиента {}", getBankType(), userId);
+        }
+    }
+
+    public boolean getProduct(String productId, BigDecimal amount, String sourceAccountId) throws Exception {
+        this.currentToken = getToken();
+
+        Optional<String> activeProductConsent = consentService.getActiveProductConsentId(getBankType(), userId);
+        if (activeProductConsent.isEmpty()) {
+            createProductAgreementConsent();
+
+            activeProductConsent = consentService.getActiveProductConsentId(getBankType(), userId);
+
+            if (activeProductConsent.isEmpty()) {
+                throw new Exception("Не удалось получить действующее согласие для банка " + getBankType());
+            }
+        }
+
+        String getProductUrl = baseUrl + "/product-agreements?client_id=" + userId;
+
+        Map<String, Object> requestBody = Map.of(
+                "product_id", productId,
+                "amount", amount,
+                "source_account_id", sourceAccountId
+        );
+
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.set("accept", "application/json");
+        httpHeaders.set("client_id", userId);
+        httpHeaders.set("x-product-agreement-consent-id", activeProductConsent.get());
+        httpHeaders.set("x-requesting-bank", clientId);
+
+        try {
+            ResponseEntity<Map> responseEntity = restTemplate.exchange(
+                    getProductUrl, HttpMethod.POST, new HttpEntity<>(requestBody, httpHeaders), Map.class
+            );
+
+            if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
+                log.info("Продукт {} успешно приобретён", productId);
+                return true;
+            }
+        } catch (Exception e) {
+            log.error("Не удалось приобрести продукт {}", productId);
+        }
+        return false;
+    }
+
+    public List<Product> getUserProductList() throws Exception {
+        this.currentToken = getToken();
+
+        Optional<String> activeProductConsent = consentService.getActiveProductConsentId(getBankType(), userId);
+        if (activeProductConsent.isEmpty()) {
+            createProductAgreementConsent();
+
+            activeProductConsent = consentService.getActiveProductConsentId(getBankType(), userId);
+
+            if (activeProductConsent.isEmpty()) {
+                throw new Exception("Не удалось получить действующее согласие для банка " + getBankType());
+            }
+        }
+
+        String getProductListUrl = baseUrl + "/product-agreements?client_id=" + userId;
+
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.set("accept", "application/json");
+        httpHeaders.set("client_id", userId);
+        httpHeaders.set("x-product-agreement-consent-id", activeProductConsent.get());
+        httpHeaders.set("x-requesting-bank", clientId);
+
+        try {
+            ResponseEntity<Map> responseEntity = restTemplate.exchange(
+                    getProductListUrl, HttpMethod.GET, new HttpEntity<>(httpHeaders), Map.class
+            );
+
+            if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
+                List<Map<String, Object>> productsData = (List<Map<String, Object>>) responseEntity.getBody().get("data");
+                if (productsData != null) {
+                    return productsData.stream()
+                            .map(this::mapToProduct)
+                            .collect(Collectors.toList());
+                }
+            }
+        } catch (Exception e) {
+            log.error("Не удалось раздобыть каталог продуктов банка {}: {}", getBankType(), e.getMessage());
+        }
+        return List.of();
+    }
+
+    public boolean deleteProduct(String agreementId, String repaymentAccountId, BigDecimal repaymentAmount) throws Exception {
+        this.currentToken = getToken();
+
+        Optional<String> activeProductConsent = consentService.getActiveProductConsentId(getBankType(), userId);
+        if (activeProductConsent.isEmpty()) {
+            createProductAgreementConsent();
+
+            activeProductConsent = consentService.getActiveProductConsentId(getBankType(), userId);
+
+            if (activeProductConsent.isEmpty()) {
+                throw new Exception("Не удалось получить действующее согласие для банка " + getBankType());
+            }
+        }
+
+        String deleteProductUrl = baseUrl + "/product-agreements?client_id=" + userId;
+
+        Map<String, Object> requestBody = Map.of(
+                "repayment_account_id", repaymentAccountId,
+                "repayment_amount", repaymentAmount
+        );
+
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.set("accept", "application/json");
+        httpHeaders.set("agreement_id", agreementId);
+        httpHeaders.set("client_id", userId);
+        httpHeaders.set("x-product-agreement-consent-id", activeProductConsent.get());
+        httpHeaders.set("x-requesting-bank", clientId);
+
+        try {
+            ResponseEntity<Map> responseEntity = restTemplate.exchange(
+                    deleteProductUrl, HttpMethod.DELETE, new HttpEntity<>(requestBody, httpHeaders), Map.class
+            );
+
+            if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
+                log.info("Продукт успешно удалён");
+                return true;
+            }
+        } catch (Exception e) {
+            log.error("Не удалось удалить продукт");
+        }
+        return false;
     }
 }
