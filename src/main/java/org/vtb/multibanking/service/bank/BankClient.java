@@ -11,6 +11,7 @@ import java.util.List;
 public interface BankClient {
     BankType getBankType();
     List<Account> getAccounts(String clientId) throws Exception;
+    Account createAccount(String accountType, BigDecimal initialBalance) throws Exception;
     String makePayment(String debtorAccount, String creditorAccount, Amount amount, BankType bankType) throws Exception;
     List<Product> listProductsCatalog();
     Boolean buyNewProduct(String productId, BigDecimal amount, String sourceAccountId) throws Exception;

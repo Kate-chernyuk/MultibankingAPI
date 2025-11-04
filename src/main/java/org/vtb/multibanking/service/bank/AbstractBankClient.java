@@ -2,10 +2,12 @@ package org.vtb.multibanking.service.bank;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
-import org.springframework.security.core.parameters.P;
 import org.springframework.web.client.DefaultResponseErrorHandler;
 import org.springframework.web.client.RestTemplate;
 import org.vtb.multibanking.model.*;
+import org.vtb.multibanking.model.events.AccountEvent;
+import org.vtb.multibanking.model.events.ProductEvent;
+import org.vtb.multibanking.service.integration.BankEventPublisher;
 import org.vtb.multibanking.service.ConsentService;
 
 import java.math.BigDecimal;
@@ -16,7 +18,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
-public abstract class AbstractBankClient implements BankClient{
+public abstract class AbstractBankClient implements BankClient {
 
     protected final String baseUrl;
     protected final String clientId;
@@ -30,14 +32,16 @@ public abstract class AbstractBankClient implements BankClient{
     private final ConsentService consentService;
     private String consent;
     private String requestToConsent = null;
+    private final BankEventPublisher bankEventPublisher;
 
-    public AbstractBankClient(String baseUrl, String clientId, String clientSecret, String userId, ConsentService consentService) {
+    public AbstractBankClient(String baseUrl, String clientId, String clientSecret, String userId, ConsentService consentService, BankEventPublisher bankEventPublisher) {
         this.baseUrl = baseUrl;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
         this.userId = userId;
         this.restTemplate = new RestTemplate();
         this.consentService = consentService;
+        this.bankEventPublisher = bankEventPublisher;
         this.restTemplate.setErrorHandler(new DefaultResponseErrorHandler());
     }
 
@@ -190,6 +194,7 @@ public abstract class AbstractBankClient implements BankClient{
                 List<Transaction> transactions = getAccountTransactions(account.getAccountId());
                 updateAccountWithBalances(account, balances);
                 account.getTransactions().addAll(transactions);
+
             } catch (Exception e) {
                 System.out.println("Ошибка при сопоставлении аккаунтов и балансов: " + e.getMessage());
                 throw e;
@@ -481,14 +486,32 @@ public abstract class AbstractBankClient implements BankClient{
             if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
                 Map<String, Object> data = (Map<String, Object>) responseEntity.getBody().get("data");
                 if (data != null) {
-                    String payment_id = (String) data.get("payment_id");
-                    return payment_id;
+                    String paymentId = (String) data.get("payment_id");
+
+                    Transaction paymentTransaction = createPaymentTransaction(debtorAccount, amount, paymentId);
+                    bankEventPublisher.publishTransactionEvent(paymentTransaction, userId);
+
+                    return paymentId;
                 }
             }
         } catch (Exception e) {
             log.error("Не удалось исполненить платёж {}", e.getMessage());
         }
         return null;
+    }
+
+    private Transaction createPaymentTransaction(String debtorAccount, Amount amount, String paymentId) {
+        Transaction transaction = new Transaction();
+        transaction.setTransactionId(paymentId);
+        transaction.setAccountId(debtorAccount);
+        transaction.setAmount(amount);
+        transaction.setCreditDebitIndicator("Debit");
+        transaction.setStatus("Booked");
+        transaction.setTransactionInformation("Payment");
+        transaction.setBookingDateTime(Instant.now());
+        transaction.setValueDateTime(Instant.now());
+
+        return transaction;
     }
 
     public List<Product> getProductsCatalog() {
@@ -536,6 +559,58 @@ public abstract class AbstractBankClient implements BankClient{
         product.setBankType(getBankType());
 
         return product;
+    }
+    public Account createAccount(String accountType, BigDecimal initialBalance) throws Exception {
+        this.currentToken = getToken();
+        Optional<String> activeConsent = consentService.getActiveConsentId(getBankType(), userId);
+        if (activeConsent.isEmpty()) {
+            createConsent();
+
+            activeConsent = consentService.getActiveConsentId(getBankType(), userId);
+
+            if (activeConsent.isEmpty()) {
+                throw new Exception("Не удалось получить действующее согласие для банка " + getBankType());
+            }
+        }
+
+        this.consent = activeConsent.get();
+        String createAccountUrl = baseUrl + "/accounts?client_id=" + userId;
+
+        Map<String, Object> requestBody = Map.of(
+                "account_type", accountType,
+                "initial_balance", initialBalance
+        );
+
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.set("accept", "application/json");
+        httpHeaders.set("x-consent-id", consent);
+        httpHeaders.set("x-requesting-bank", clientId);
+        httpHeaders.setContentType(MediaType.APPLICATION_JSON);
+
+        try {
+            ResponseEntity<Map> responseEntity = restTemplate.exchange(
+                    createAccountUrl, HttpMethod.POST, new HttpEntity<>(requestBody, httpHeaders), Map.class
+            );
+
+            if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
+                Map<String, Object> accountData = (Map<String, Object>) responseEntity.getBody();
+
+                Account newAccount = mapToAccount(accountData);
+
+                bankEventPublisher.publishAccountEvent(
+                        newAccount, userId, AccountEvent.AccountEventType.OPENED
+                );
+
+                log.info("Счет успешно создан: {} для пользователя {}", newAccount.getAccountId(), userId);
+                return newAccount;
+            }
+        } catch (Exception e) {
+            log.error("Ошибка при создании счета: {}", e.getMessage());
+            throw e;
+        }
+
+        throw new RuntimeException("Не удалось создать счет в банке " + getBankType());
     }
 
     private void createProductAgreementConsent() throws Exception {
@@ -619,6 +694,15 @@ public abstract class AbstractBankClient implements BankClient{
 
             if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
                 log.info("Продукт {} успешно приобретён", productId);
+                List<Product> userProducts = getUserProductList();
+                userProducts.stream()
+                        .filter(product -> productId.equals(product.getProductId()))
+                        .findFirst()
+                        .ifPresent(product -> {
+                            bankEventPublisher.publishProductEvent(
+                                    product, userId, ProductEvent.ProductEventType.PURCHASED
+                            );
+                        });
                 return true;
             }
         } catch (Exception e) {
@@ -712,4 +796,9 @@ public abstract class AbstractBankClient implements BankClient{
         }
         return false;
     }
+
+    protected String getCurrentUserId() {
+        return this.userId;
+    }
+
 }

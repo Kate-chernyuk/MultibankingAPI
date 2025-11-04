@@ -4,10 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.vtb.multibanking.model.AggregationResult;
 import org.vtb.multibanking.model.Transaction;
 import org.vtb.multibanking.service.AggregationService;
@@ -52,12 +49,6 @@ public class AggregationController {
         }
     }
 
-    @GetMapping("/banks")
-    public ResponseEntity<List<String>> getSupportedBanks() {
-        List<String> banks = List.of("VBANK", "ABANK", "SBANK");
-        return ResponseEntity.ok(banks);
-    }
-
     @GetMapping("/transactions/{clientId}")
     public ResponseEntity<Map<String, Object>> getAllUserTransactions(@PathVariable String clientId) {
         try {
@@ -80,11 +71,10 @@ public class AggregationController {
         }
     }
 
-
     @Scheduled(cron = "${app.update.cron:0 */5 * * * *}")
     public void autoUpdate() {
         log.info("Автообновление данных...");
         aggregateAccounts("team086-1");
-        //TODO не забыть добавить автообновление га фронте - бек работает (см. консоль)
+        //TODO не забыть добавить автообновление на фронте - бек работает (см. консоль)
     }
 }

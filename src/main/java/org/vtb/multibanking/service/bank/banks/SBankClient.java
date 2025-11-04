@@ -6,6 +6,7 @@ import org.vtb.multibanking.model.Account;
 import org.vtb.multibanking.model.Amount;
 import org.vtb.multibanking.model.BankType;
 import org.vtb.multibanking.model.Product;
+import org.vtb.multibanking.service.integration.BankEventPublisher;
 import org.vtb.multibanking.service.ConsentService;
 import org.vtb.multibanking.service.bank.AbstractBankClient;
 
@@ -14,13 +15,13 @@ import java.util.List;
 
 @Service
 public class SBankClient extends AbstractBankClient {
-    public SBankClient(BankConfig bankConfig, ConsentService consentService) {
+    public SBankClient(BankConfig bankConfig, ConsentService consentService, BankEventPublisher bankEventPublisher) {
         super(
                 bankConfig.getApis().get("sbank").getBaseUrl(),
                 bankConfig.getApis().get("sbank").getClientId(),
                 bankConfig.getApis().get("sbank").getClientSecret(),
-                bankConfig.getApis().get("abank").getClientId() + "-1",
-                consentService
+                bankConfig.getApis().get("abank").getClientId() + "-2",
+                consentService, bankEventPublisher
         );
     }
 
