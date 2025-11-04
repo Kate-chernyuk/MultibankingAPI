@@ -12,7 +12,6 @@ import org.vtb.multibanking.model.Amount;
 import org.vtb.multibanking.model.BankType;
 import org.vtb.multibanking.service.bank.BankClient;
 import org.vtb.multibanking.service.bank.BankService;
-
 import java.util.Map;
 
 @Slf4j
@@ -23,6 +22,11 @@ public class PaymentController {
 
     private final BankService bankService;
 
+    /*
+    Образец запроса:
+    curl.exe -X POST http://localhost:8090/api/v1/payments/team086-2 -H "Content-Type: application/json" -H "Accept: application/json" -d '{\"fromAccount\": \"4081781008602032653\", \"toAccount\": \"408aea555af8ad04c0\", \"bankTypeTo\": \"VBANK\", \"bankTypeFrom\": \"VBANK\", \"amount\": {\"amount\": \"12000\", \"currency\": \"RUB\"}}'
+    {"toBank":"VBANK","message":"Платёж успешно создан","paymentId":"pay-8788ff7e58b2","success":true,"fromBank":"VBANK"}
+    */
     @PostMapping("/{client_id}")
     public ResponseEntity<Map<String, Object>> createNewPayment(
             @PathVariable String client_id,
@@ -30,8 +34,11 @@ public class PaymentController {
         try {
             String fromAccount = (String) paymentRequest.get("fromAccount");
             String toAccount = (String) paymentRequest.get("toAccount");
-            BankType bankTypeTo = (BankType) paymentRequest.get("bankTypeTo");
-            BankType bankTypeFrom = (BankType) paymentRequest.get("bankTypeFrom");
+
+            String bankTypeToStr = (String) paymentRequest.get("bankTypeTo");
+            String bankTypeFromStr = (String) paymentRequest.get("bankTypeFrom");
+            BankType bankTypeTo = BankType.valueOf(bankTypeToStr);
+            BankType bankTypeFrom = BankType.valueOf(bankTypeFromStr);
 
             Map<String, String> amountMap = (Map<String, String>) paymentRequest.get("amount");
             Amount amount = new Amount(
@@ -42,6 +49,7 @@ public class PaymentController {
             BankClient bankClient = bankService.getBankClient(bankTypeFrom);
 
             String paymentId = bankClient.makePayment(fromAccount, toAccount, amount, bankTypeTo);
+
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "paymentId", paymentId,

@@ -18,6 +18,7 @@ public class Product {
     private Integer termMonth;
     private BankType bankType;
     private String agreementId;
+    private String status;
 
     public String getFormattedInterestRate() {
         return interestRate != null ? interestRate + "%" : "—";

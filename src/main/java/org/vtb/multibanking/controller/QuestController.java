@@ -12,6 +12,8 @@ import org.vtb.multibanking.service.quest.QuestEngineService;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/quests")
@@ -58,6 +60,33 @@ public class QuestController {
         }
     }
 
+    @GetMapping("{userId}/currentQuest")
+    public ResponseEntity<Map<String, Object>> getCurrentUserQuest(@PathVariable String userId) {
+        try {
+            Optional<QuestEntity> userQuestOpt = questEngineService.getCurrentUserQuest(userId);
+
+            Map<String, Object> response = new HashMap<>();
+            if (userQuestOpt.isPresent()) {
+                response.put("success", true);
+                response.put("quest", userQuestOpt.get());
+                response.put("message", "Текущий квест найден");
+            } else {
+                response.put("success", true);
+                response.put("quest", null);
+                response.put("message", "У пользователя нет активных квестов");
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Ошибка получения квеста юзера {}: {}", userId, e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
+        }
+    }
+
     @GetMapping("{userId}/dashboard")
     public ResponseEntity<Map<String, Object>> getQuestDashboard(@PathVariable String userId) {
         try {
@@ -73,6 +102,28 @@ public class QuestController {
         } catch (Exception e) {
             log.error("Ошибка при создании дашборда квестов юзера {}: {}", userId, e.getMessage());
             return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @GetMapping("/{userId}/rewards")
+    public ResponseEntity<Map<String, Object>> getUserRewards(@PathVariable String userId) {
+        try {
+            UserProfileEntity profile = questEngineService.getUserProfileWithStats(userId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("userId", userId);
+            response.put("rewards", profile.getActiveRewards());
+            response.put("totalRewards", profile.getActiveRewards() != null ? profile.getActiveRewards().size() : 0);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Ошибка получения наград пользователя {}: {}", userId, e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
         }
     }
 

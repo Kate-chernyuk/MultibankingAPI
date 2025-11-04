@@ -56,6 +56,37 @@ public class QuestDataInitializer implements CommandLineRunner {
 
         questRepository.save(openAccountQuest);
 
+        QuestEntity firstProductQuest = QuestEntity.builder()
+                .title("Первый финансовый продукт")
+                .description("Приобретите любой финансовый продукт (вклад, кредит или карту) и получите бонусные баллы")
+                .questType(QuestType.PRODUCT_PURCHASE)
+                .questDifficulty(QuestDifficulty.BASIC)
+                .conditions(Map.of(
+                        "action", "product_purchase",
+                        "product_type", "any",
+                        "min_amount", "1000"
+                ))
+                .rewards(Map.of(
+                        "questType", "cashback",
+                        "value", "5",
+                        "category", "all",
+                        "duration", "30days",
+                        "bonus_points", "100"
+                ))
+                .points(8)
+                .minAmount(new BigDecimal("1000"))
+                .maxCompletions(800)
+                .currentCompletions(0)
+                .status(QuestStatus.ACTIVE)
+                .startDate(Instant.now())
+                .endDate(Instant.now().plusSeconds(3600 * 24 * 31))
+                .requiredTier(SubscriptionTier.FREE)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+
+        questRepository.save(firstProductQuest);
+
         // Продвинутые квесты
         QuestEntity largeTransferQuest = QuestEntity.builder()
                 .title("Крупный перевод")

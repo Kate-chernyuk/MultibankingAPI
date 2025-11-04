@@ -10,6 +10,7 @@ import org.vtb.multibanking.model.BankType;
 import org.vtb.multibanking.service.bank.BankService;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/accounts")
@@ -19,20 +20,23 @@ public class AccountController {
 
     private final BankService bankService;
 
-    @PostMapping("/{bankType}/create")
+    //какая-то хтонь: в теории всё должно выполняться, на практике Ошибка создания нового счёта: 401 Unauthorized: [no body]
+    @PostMapping("/{clientId}/create")
     public ResponseEntity<Account> createAccount(
-            @PathVariable BankType bankType,
-            @RequestParam String accountType,
-            @RequestParam(required = false, defaultValue = "0") BigDecimal initialBalance) {
-
+            @PathVariable String clientId,
+            @RequestBody Map<String, Object> requestBody) {
         try {
+            BankType bankType = BankType.valueOf((String) requestBody.get("bankType"));
+            String accountType = (String) requestBody.get("accountType");
+            BigDecimal initialBalance = BigDecimal.valueOf(Double.parseDouble((String) requestBody.get("initialBalance")));
+
             BankClient bankClient = bankService.getBankClient(bankType);
             Account newAccount = bankClient.createAccount(accountType, initialBalance);
 
             return ResponseEntity.ok(newAccount);
 
         } catch (Exception e) {
-            log.error("Ошибка создания счета в банке {}: {}", bankType, e.getMessage());
+            log.error("Ошибка создания нового счёта: {}", e.getMessage());
             return ResponseEntity.badRequest().build();
         }
     }

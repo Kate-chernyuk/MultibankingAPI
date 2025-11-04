@@ -78,6 +78,7 @@ public class ProductController {
             @PathVariable String clientId,
             @RequestParam(required = false) String bankType,
             @RequestParam(required = false) String productType,
+            @RequestParam(required = false) String status,
             @RequestParam(required = false) String sortBy
     ) {
         try {
@@ -104,6 +105,12 @@ public class ProductController {
                         .collect(Collectors.toList());
             }
 
+            if (status != null && !status.isEmpty()) {
+                clientProducts = clientProducts.stream()
+                        .filter(product -> product.getStatus().equalsIgnoreCase(status))
+                        .collect(Collectors.toList());
+            }
+
             if (sortBy != null && !sortBy.isEmpty()) {
                 clientProducts = sortProducts(clientProducts, sortBy);
             }
@@ -125,17 +132,24 @@ public class ProductController {
         }
     }
 
+    /*
+    Образец:
+     curl.exe -X POST http://localhost:8090/api/v1/products/team086-3/buy -H "Content-Type: application/json" -H "Accept: application/json" -d '{\"bankType\": \"VBANK\", \"productId\": \"prod-vbank-deposit-001\", \"amount\": \"50000\", \"sourceAccountId\": \"4081781008603086687\"}'
+     {"clientId":"team086-3","productId":"prod-vbank-deposit-001","success":true,"bankType":"VBANK","message":"Продукт успешно приобретен"}
+    */
     @PostMapping("/{clientId}/buy")
     public ResponseEntity<Map<String, Object>> buyProduct(
             @PathVariable String clientId,
-            @RequestParam String productId,
-            @RequestParam BigDecimal amount,
-            @RequestParam String sourceAccountId,
-            @RequestParam String bankType
+            @RequestBody Map<String, Object> requestBody
     ) {
         try {
-            BankType bank = BankType.valueOf(bankType.toUpperCase());
-            var bankClient = bankService.getBankClient(bank);
+
+            BankType bankType = BankType.valueOf((String) requestBody.get("bankType"));
+            var bankClient = bankService.getBankClient(bankType);
+
+            String productId = (String) requestBody.get("productId");
+            BigDecimal amount = BigDecimal.valueOf(Double.parseDouble((String) requestBody.get("amount")));
+            String sourceAccountId = (String) requestBody.get("sourceAccountId");
 
             Boolean success = bankClient.buyNewProduct(productId, amount, sourceAccountId);
 
@@ -174,14 +188,15 @@ public class ProductController {
     @DeleteMapping("/{clientId}/delete")
     public ResponseEntity<Map<String, Object>> deleteProduct(
             @PathVariable String clientId,
-            @RequestParam String agreementId,
-            @RequestParam String repaymentAccountId,
-            @RequestParam BigDecimal repaymentAmount,
-            @RequestParam String bankType
+            @RequestBody Map<String, Object> requestBody
     ) {
         try {
-            BankType bank = BankType.valueOf(bankType.toUpperCase());
-            var bankClient = bankService.getBankClient(bank);
+            BankType bankType = BankType.valueOf((String) requestBody.get("bankType"));
+            var bankClient = bankService.getBankClient(bankType);
+
+            String agreementId = (String) requestBody.get("agreementId");
+            String repaymentAccountId = (String) requestBody.get("repaymentAccountId");
+            BigDecimal repaymentAmount = BigDecimal.valueOf(Double.parseDouble((String) requestBody.get("repaymentAmount")));
 
             Boolean success = bankClient.deleteSomeProduct(agreementId, repaymentAccountId, repaymentAmount);
 

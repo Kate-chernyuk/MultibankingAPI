@@ -66,4 +66,12 @@ public class UserProfileEntity {
 
     @Field("updated_at")
     private Instant updatedAt;
+
+    public List<ActiveReward> getActiveRewards() {
+        return activeRewards;
+    }
+
+    public void setActiveRewards(List<ActiveReward> activeRewards) {
+        this.activeRewards = activeRewards;
+    }
 }

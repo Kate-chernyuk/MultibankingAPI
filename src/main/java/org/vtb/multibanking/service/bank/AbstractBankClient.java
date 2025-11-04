@@ -76,19 +76,45 @@ public abstract class AbstractBankClient implements BankClient {
     }
 
     protected void createConsent() throws Exception {
-        String token = getToken();
+        Optional<String> existingConsentOpt = consentService.getActiveConsentId(getBankType(), userId);
+        if (existingConsentOpt.isPresent()) {
+            String existingConsentId = existingConsentOpt.get();
+            log.info("Действующее согласие уже существует для банка {}: {}", getBankType().toString(), existingConsentId);
+            this.consent = existingConsentId;
+            return;
+        }
+
+        Optional<String> pendingRequestOpt = consentService.getPendingRequestId(getBankType(), userId);
+        if (pendingRequestOpt.isPresent()) {
+            String pendingRequestId = pendingRequestOpt.get();
+            log.info("Найдено pending согласие для банка {}. Проверяем статус: {}", getBankType().toString(), pendingRequestId);
+
+            checkConsentStatus(pendingRequestId);
+
+            Optional<String> updatedConsentOpt = consentService.getActiveConsentId(getBankType(), userId);
+            if (updatedConsentOpt.isPresent()) {
+                log.info("Согласие стало активным после проверки: {}", updatedConsentOpt.get());
+                this.consent = updatedConsentOpt.get();
+                return;
+            } else {
+                log.info("Согласие все еще в статусе pending. Используем существующий requestId: {}", pendingRequestId);
+                return;
+            }
+        }
+        log.info("Создаем новое согласие для банка {}", getBankType().toString());
+
         String consentUrl = baseUrl + "/account-consents/request";
 
         Map<String, Object> requestBody = Map.of(
                 "client_id", userId,
-                "permissions", List.of("ReadAccountsDetail", "ReadBalances", "ReadTransactionsDetail"),
+                "permissions", List.of("ReadAccountsDetail", "ReadBalances", "ReadTransactionsDetail", "WriteAccounts"),
                 "reason", "",
                 "requesting_bank", "test_bank",
                 "requesting_bank_name", "Test Bank"
         );
 
         HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setBearerAuth(token);
+        httpHeaders.setBearerAuth(currentToken);
         httpHeaders.set("accept", "application/json");
         httpHeaders.set("x-requesting-bank", clientId);
         httpHeaders.setContentType(MediaType.APPLICATION_JSON);
@@ -103,26 +129,29 @@ public abstract class AbstractBankClient implements BankClient {
                 if (status.equals("approved")) {
                     String consentId = (String) responseEntity.getBody().get("consent_id");
                     consentService.saveConsent(getBankType(), userId, consentId, null, "approved");
-                    System.out.println("Успешно получено согласие для банка " + getBankType().toString() + ": " + consentId);
+                    this.consent = consentId;
+                    log.info("Успешно получено согласие для банка {}: {}", getBankType().toString(), consentId);
                     return;
                 } else if (status.equals("pending")) {
-                    consentService.saveConsent(getBankType(), userId, null, (String) responseEntity.getBody().get("request_id"), "pending");
-                    System.out.println("Запрос отправлен на одобрение в банк " + getBankType().toString());
-                    //   this.consent = waitForConsentApproval(30);
+                    String requestId = (String) responseEntity.getBody().get("request_id");
+                    consentService.saveConsent(getBankType(), userId, null, requestId, "pending");
+                    log.info("Запрос отправлен на одобрение в банк {}: {}", getBankType().toString(), requestId);
+                    Thread.sleep(5000);
+                    checkConsentStatus(requestId);
                     return;
                 }
             }
         } catch (Exception e) {
-            System.out.println("Ошибка получения согласия для банка " + getBankType().toString() + ": " + e.getMessage());
+            log.error("Ошибка получения согласия для банка {}: {}", getBankType().toString(), e.getMessage());
             throw e;
         }
 
         throw new RuntimeException("Ошибка получения согласия для банка " + getBankType());
     }
 
-    protected boolean checkConsentStatus() throws Exception {
+    protected void checkConsentStatus(String requestId) throws Exception {
         String token = getToken();
-        String statusUrl = baseUrl + "/account-consents/" + requestToConsent;
+        String statusUrl = baseUrl + "/account-consents/" + requestId;
 
         HttpHeaders httpHeaders = new HttpHeaders();
         httpHeaders.setBearerAuth(token);
@@ -137,55 +166,44 @@ public abstract class AbstractBankClient implements BankClient {
             if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
                 Map<String, Object> data = (Map<String, Object>) responseEntity.getBody().get("data");
                 if (data != null) {
-                    if (data.get("status").equals("Authorized")) {
-                        consentService.updateConsentStatus(getBankType(), userId, "Authorized", (String) data.get("consentId"));
-                        return true;
+                    String status = (String) data.get("status");
+                    if ("Authorized".equals(status) || "approved".equals(status)) {
+                        String consentId = (String) data.get("consentId");
+                        consentService.updateConsentStatus(getBankType(), userId, "approved", consentId);
+                        log.info("Согласие успешно авторизовано для банка {}: {}", getBankType().toString(), consentId);
                     } else {
-                        System.out.println("Согласие не было предоставлено. Пожалуйста, перейдите в ЛК банка " + getBankType().toString() + " и дайте согласие");
-                        return false;
+                        log.info("Статус согласия: {}. Пожалуйста, перейдите в ЛК банка {} и дайте согласие",
+                                status, getBankType().toString());
                     }
                 }
             }
         } catch (Exception e) {
-            System.out.println("Ошибка проверки статуса согласия: " + e.getMessage());
+            log.error("Ошибка проверки статуса согласия: {}", e.getMessage());
         }
-
-        return false;
     }
-
-    /*protected String waitForConsentApproval(int timeoutSeconds) throws Exception {
-        System.out.println("Ожидание подтверждения согласия для " + getBankType() + "...");
-
-        long startTime = System.currentTimeMillis();
-        long timeoutMs = timeoutSeconds * 1000L;
-
-        while (System.currentTimeMillis() - startTime < timeoutMs) {
-            boolean hasConsentId = checkConsentStatus();
-            if (hasConsentId) {
-                System.out.println("Согласие подтверждено! consentId: " + consent);
-            }
-
-            System.out.println("Согласие ещё не подтверждено, ждем...");
-            Thread.sleep(5000);
-        }
-
-        throw new RuntimeException("Таймаут ожидания подтверждения согласия для " + getBankType());
-    }*/
 
     public List<Account> fetchAccounts() throws Exception {
         this.currentToken = getToken();
-        Optional<String> activeConsent = consentService.getActiveConsentId(getBankType(), userId);
-        if (activeConsent.isEmpty()) {
+
+        Optional<String> activeConsentOpt = consentService.getActiveConsentId(getBankType(), userId);
+        if (activeConsentOpt.isEmpty()) {
             createConsent();
 
-            activeConsent = consentService.getActiveConsentId(getBankType(), userId);
+            activeConsentOpt = consentService.getActiveConsentId(getBankType(), userId);
+            if (activeConsentOpt.isEmpty()) {
+                Optional<String> pendingRequestOpt = consentService.getPendingRequestId(getBankType(), userId);
+                if (pendingRequestOpt.isPresent()) {
+                    checkConsentStatus(pendingRequestOpt.get());
+                    activeConsentOpt = consentService.getActiveConsentId(getBankType(), userId);
+                }
+            }
 
-            if (activeConsent.isEmpty()) {
+            if (activeConsentOpt.isEmpty()) {
                 throw new Exception("Не удалось получить действующее согласие для банка " + getBankType());
             }
         }
 
-        this.consent = activeConsent.get();
+        this.consent = activeConsentOpt.get();
 
         List<Account> accounts = getAccountList();
         for (Account account: accounts) {
@@ -419,10 +437,10 @@ public abstract class AbstractBankClient implements BankClient {
     }
 
     protected String getPaymentConsent(String debtorAccount, Integer amount) throws Exception {
-        String consentUrl = baseUrl + "payment-consents/request";
+        String consentUrl = baseUrl + "/payment-consents/request";
 
         Map<String, Object> requestBody = Map.of(
-                "clientId", userId,
+                "client_id", userId,
                 "requesting_bank", clientId,
                 "consent_type", "single_use",
                 "debtor_account", debtorAccount,
@@ -451,24 +469,31 @@ public abstract class AbstractBankClient implements BankClient {
     }
 
     public String createPayment(String debtorAccount, String creditorAccount, Amount amount, BankType bankType) throws Exception {
-        currentToken = getToken();
-        String consent = getPaymentConsent(debtorAccount, Integer.valueOf(amount.getAmount()));
+        this.currentToken = getToken();
+        String consent = getPaymentConsent(debtorAccount, Integer.valueOf(String.valueOf(amount.getAmount())));
         String paymentUrl = baseUrl + "/payments?client_id=" + userId;
 
         Map<String, Object> requestBody = Map.of(
                 "data", Map.of(
-                        "initiation", amount,
-                        "debtorAccount", Map.of(
-                                "schemeName", "RU.CBR.PAN",
-                                "identification", debtorAccount
-                        ),
-                        "creditorAccount", Map.of(
-                                "schemeName", "RU.CBR.PAN",
-                                "identification", creditorAccount,
-                                "bank_code", bankType != getBankType() ? bankType : null
+                        "initiation", Map.of(
+                                "instructedAmount", Map.of(
+                                        "amount", amount.getAmount(),
+                                        "currency", "RUB"
+                                ),
+                                "debtorAccount", Map.of(
+                                        "schemeName", "RU.CBR.PAN",
+                                        "identification", debtorAccount
+                                ),
+                                "creditorAccount", Map.of(
+                                        "schemeName", "RU.CBR.PAN",
+                                        "identification", creditorAccount,
+                                        "bank_code", bankType.toString().toLowerCase()
+                                )
                         )
                 )
         );
+
+        log.info(requestBody.toString());
 
 
         HttpHeaders httpHeaders = new HttpHeaders();
@@ -486,7 +511,7 @@ public abstract class AbstractBankClient implements BankClient {
             if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
                 Map<String, Object> data = (Map<String, Object>) responseEntity.getBody().get("data");
                 if (data != null) {
-                    String paymentId = (String) data.get("payment_id");
+                    String paymentId = (String) data.get("paymentId");
 
                     Transaction paymentTransaction = createPaymentTransaction(debtorAccount, amount, paymentId);
                     bankEventPublisher.publishTransactionEvent(paymentTransaction, userId);
@@ -515,7 +540,7 @@ public abstract class AbstractBankClient implements BankClient {
     }
 
     public List<Product> getProductsCatalog() {
-        currentToken = getToken();
+        this.currentToken = getToken();
         String catalogUrl = baseUrl + "/products";
 
         HttpHeaders httpHeaders = new HttpHeaders();
@@ -556,10 +581,12 @@ public abstract class AbstractBankClient implements BankClient {
         product.setMaxAmount(productData.containsKey("maxAmount") ? (String) productData.get("maxAmount") : (String) Double.toString((Double) productData.get("amount")));
         product.setTermMonth(productData.containsKey("termMonths") ? (Integer) productData.get("termMonths") : null);
         product.setAgreementId(productData.containsKey("agreement_id") ? (String) productData.get("agreement_id") : null);
+        product.setStatus(productData.containsKey("status") ? (String) productData.get("status") : null);
         product.setBankType(getBankType());
 
         return product;
     }
+
     public Account createAccount(String accountType, BigDecimal initialBalance) throws Exception {
         this.currentToken = getToken();
         Optional<String> activeConsent = consentService.getActiveConsentId(getBankType(), userId);
@@ -574,7 +601,7 @@ public abstract class AbstractBankClient implements BankClient {
         }
 
         this.consent = activeConsent.get();
-        String createAccountUrl = baseUrl + "/accounts?client_id=" + userId;
+        String createAccountUrl = baseUrl + "/accounts";
 
         Map<String, Object> requestBody = Map.of(
                 "account_type", accountType,
@@ -592,6 +619,8 @@ public abstract class AbstractBankClient implements BankClient {
             ResponseEntity<Map> responseEntity = restTemplate.exchange(
                     createAccountUrl, HttpMethod.POST, new HttpEntity<>(requestBody, httpHeaders), Map.class
             );
+
+            log.info(responseEntity.toString());
 
             if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
                 Map<String, Object> accountData = (Map<String, Object>) responseEntity.getBody();
@@ -686,6 +715,7 @@ public abstract class AbstractBankClient implements BankClient {
         httpHeaders.set("client_id", userId);
         httpHeaders.set("x-product-agreement-consent-id", activeProductConsent.get());
         httpHeaders.set("x-requesting-bank", clientId);
+        httpHeaders.setContentType(MediaType.APPLICATION_JSON);
 
         try {
             ResponseEntity<Map> responseEntity = restTemplate.exchange(
@@ -704,11 +734,16 @@ public abstract class AbstractBankClient implements BankClient {
                             );
                         });
                 return true;
+            } else {
+                log.error("Ошибка при покупке продукта: статус={}, тело={}",
+                        responseEntity.getStatusCode(), responseEntity.getBody());
+                return false;
             }
         } catch (Exception e) {
-            log.error("Не удалось приобрести продукт {}", productId);
+            log.error("Не удалось приобрести продукт {}: {}", productId, e.getMessage());
+            log.error("Детали ошибки:", e);
+            return false;
         }
-        return false;
     }
 
     public List<Product> getUserProductList() throws Exception {
@@ -767,7 +802,7 @@ public abstract class AbstractBankClient implements BankClient {
             }
         }
 
-        String deleteProductUrl = baseUrl + "/product-agreements?client_id=" + userId;
+        String deleteProductUrl = baseUrl + "/product-agreements/" + agreementId + "?client_id=" + userId;
 
         Map<String, Object> requestBody = Map.of(
                 "repayment_account_id", repaymentAccountId,
@@ -781,6 +816,7 @@ public abstract class AbstractBankClient implements BankClient {
         httpHeaders.set("client_id", userId);
         httpHeaders.set("x-product-agreement-consent-id", activeProductConsent.get());
         httpHeaders.set("x-requesting-bank", clientId);
+        httpHeaders.setContentType(MediaType.APPLICATION_JSON);
 
         try {
             ResponseEntity<Map> responseEntity = restTemplate.exchange(
@@ -790,11 +826,16 @@ public abstract class AbstractBankClient implements BankClient {
             if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
                 log.info("Продукт успешно удалён");
                 return true;
+            } else {
+                log.error("Ошибка при удалении продукта: статус={}, тело={}",
+                        responseEntity.getStatusCode(), responseEntity.getBody());
+                return false;
             }
         } catch (Exception e) {
-            log.error("Не удалось удалить продукт");
+            log.error("Не удалось удалить продукт {}: {}", agreementId, e.getMessage());
+            log.error("Детали ошибки удаления:", e);
+            return false;
         }
-        return false;
     }
 
     protected String getCurrentUserId() {

@@ -70,7 +70,7 @@ public class ConsentService {
                 .ifPresent(consent -> {
                     consent.setStatus(status);
                     if (consentId != null) {
-                        consent.setConsentId(consentId);
+                        consent.setConsentId(consentId.toLowerCase());
                     }
                     consentRepository.save(consent);
                     log.info("Обновлен статус согласия для {}: {}", bankType, status);
@@ -79,7 +79,7 @@ public class ConsentService {
 
     public Optional<String> getPendingRequestId(BankType bankType, String clientId) {
         return consentRepository.findByBankTypeAndClientId(bankType, clientId)
-                .filter(consent -> "PENDING".equals(consent.getStatus()))
+                .filter(consent -> "pending".equals(consent.getStatus()))
                 .map(ConsentEntity::getRequestId);
     }
 

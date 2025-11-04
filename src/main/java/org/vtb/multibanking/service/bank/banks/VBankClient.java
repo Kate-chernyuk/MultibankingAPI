@@ -20,7 +20,7 @@ public class VBankClient extends AbstractBankClient {
                 bankConfig.getApis().get("vbank").getBaseUrl(),
                 bankConfig.getApis().get("vbank").getClientId(),
                 bankConfig.getApis().get("vbank").getClientSecret(),
-                bankConfig.getApis().get("abank").getClientId() + "-2",
+                bankConfig.getApis().get("abank").getClientId() + "-3",
                 consentService, bankEventPublisher
         );
     }
