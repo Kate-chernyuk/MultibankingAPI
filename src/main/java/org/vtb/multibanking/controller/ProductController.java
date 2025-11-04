@@ -185,6 +185,11 @@ public class ProductController {
         }
     }
 
+    /*
+    Образец:
+    curl.exe -X DELETE http://localhost:8090/api/v1/products/team086-3/delete -H "Content-Type: application/json" -H "Accept: application/json" -d '{\"bankType\": \"VBANK\", \"agreementId\": \"agr-83fa0878a598\", \"repaymentAccountId\": \"4081781008603086687\", \"repaymentAmount\": \"50000\"}'
+    {"clientId":"team086-3","success":true,"bankType":"VBANK","agreementId":"agr-83fa0878a598","message":"Продукт успешно удален"}
+     */
     @DeleteMapping("/{clientId}/delete")
     public ResponseEntity<Map<String, Object>> deleteProduct(
             @PathVariable String clientId,
