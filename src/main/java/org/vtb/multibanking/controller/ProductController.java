@@ -118,6 +118,7 @@ public class ProductController {
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("products", clientProducts);
+            response.put("client", clientId);
             response.put("count", clientProducts.size());
             response.put("timestamp", new Date());
 
@@ -238,30 +239,24 @@ public class ProductController {
     }
 
     private List<Product> sortProducts(List<Product> products, String sortBy) {
-        switch (sortBy) {
-            case "interest_desc":
-                return products.stream()
-                        .sorted((p1, p2) -> compareInterestRates(p2, p1))
-                        .collect(Collectors.toList());
-            case "interest_asc":
-                return products.stream()
-                        .sorted(this::compareInterestRates)
-                        .collect(Collectors.toList());
-            case "name_desc":
-                return products.stream()
-                        .sorted(Comparator.comparing(Product::getProductName).reversed())
-                        .collect(Collectors.toList());
-            case "name_asc":
-                return products.stream()
-                        .sorted(Comparator.comparing(Product::getProductName))
-                        .collect(Collectors.toList());
-            case "bank":
-                return products.stream()
-                        .sorted(Comparator.comparing(product -> product.getBankType().name()))
-                        .collect(Collectors.toList());
-            default:
-                return products;
-        }
+        return switch (sortBy) {
+            case "interest_desc" -> products.stream()
+                    .sorted((p1, p2) -> compareInterestRates(p2, p1))
+                    .collect(Collectors.toList());
+            case "interest_asc" -> products.stream()
+                    .sorted(this::compareInterestRates)
+                    .collect(Collectors.toList());
+            case "name_desc" -> products.stream()
+                    .sorted(Comparator.comparing(Product::getProductName).reversed())
+                    .collect(Collectors.toList());
+            case "name_asc" -> products.stream()
+                    .sorted(Comparator.comparing(Product::getProductName))
+                    .collect(Collectors.toList());
+            case "bank" -> products.stream()
+                    .sorted(Comparator.comparing(product -> product.getBankType().name()))
+                    .collect(Collectors.toList());
+            default -> products;
+        };
     }
 
     private int compareInterestRates(Product p1, Product p2) {

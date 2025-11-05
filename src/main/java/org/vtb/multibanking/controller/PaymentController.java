@@ -52,6 +52,7 @@ public class PaymentController {
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
+                    "client", client_id,
                     "paymentId", paymentId,
                     "message", "Платёж успешно создан",
                     "fromBank", bankTypeFrom,

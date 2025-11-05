@@ -7,7 +7,6 @@ import org.springframework.web.bind.annotation.*;
 import org.vtb.multibanking.entity.quest.QuestEntity;
 import org.vtb.multibanking.entity.quest.UserProfileEntity;
 import org.vtb.multibanking.entity.quest.UserQuestEntity;
-import org.vtb.multibanking.service.bank.BankClient;
 import org.vtb.multibanking.service.quest.QuestEngineService;
 
 import java.util.HashMap;

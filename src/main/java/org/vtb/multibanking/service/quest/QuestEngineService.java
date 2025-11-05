@@ -21,12 +21,9 @@ import org.vtb.multibanking.model.quest.SubscriptionTier;
 import org.vtb.multibanking.repository.QuestRepository;
 import org.vtb.multibanking.repository.UserProfileRepository;
 import org.vtb.multibanking.repository.UserQuestRepository;
-import org.vtb.multibanking.service.bank.BankClient;
-import org.vtb.multibanking.service.bank.BankService;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
