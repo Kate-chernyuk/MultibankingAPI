@@ -19,17 +19,17 @@ public class BankEventPublisher {
     public final ApplicationEventPublisher eventPublisher;
 
     public void publishTransactionEvent(Transaction transaction, String userId) {
-        log.debug("Publishing transaction event for user: {}", userId);
+        log.debug("Сообщение о запуске процесса транзакции пользователь(ницей): {}", userId);
         eventPublisher.publishEvent(new TransactionEvent(this, transaction, userId));
     }
 
     public void publishAccountEvent(Account account, String userId, AccountEvent.AccountEventType eventType) {
-        log.debug("Publishing account event for user: {}, type: {}", (Object) userId, eventType);
+        log.debug("Сообщение о запуске процесса открытия нового счёта пользователь(ницей)r: {}, тип: {}", (Object) userId, eventType);
         eventPublisher.publishEvent(new AccountEvent(this, account, userId, eventType));
     }
 
     public void publishProductEvent(Product product, String userId, ProductEvent.ProductEventType eventType) {
-        log.debug("Publishing product event for user: {}, type: {}", userId, eventType);
+        log.debug("Сообщение о запуске процесса приобретения нового продукта пользователь(ницей): {}, тип: {}", userId, eventType);
         eventPublisher.publishEvent(new ProductEvent(this, product, userId, eventType));
     }
 }

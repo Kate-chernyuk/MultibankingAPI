@@ -55,23 +55,16 @@ public abstract class AbstractBankClient implements BankClient {
         HttpHeaders httpHeaders = new HttpHeaders();
         httpHeaders.set("accept", "application/json");
 
-        try {
-            ResponseEntity<Map> responseEntity = restTemplate.exchange(
-                    tokenUrl, HttpMethod.POST, new HttpEntity<>(httpHeaders), Map.class
-            );
+        ResponseEntity<Map> responseEntity = restTemplate.exchange(
+                tokenUrl, HttpMethod.POST, new HttpEntity<>(httpHeaders), Map.class
+        );
 
-            if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
-                currentToken = (String) responseEntity.getBody().get("access_token");
-                tokenExpiresAt = Instant.now().plusSeconds(23 * 60 * 60);
+        if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
+            currentToken = (String) responseEntity.getBody().get("access_token");
+            tokenExpiresAt = Instant.now().plusSeconds(23 * 60 * 60);
 
-                System.out.println("Получен токен для: " + getBankType().toString());
-                return  currentToken;
-            }
-        } catch (Exception e) {
-            System.out.println("Ошибка получения токена для банка " + getBankType().toString() + ": " + e.getMessage());
-            throw e;
+            return  currentToken;
         }
-
         throw new RuntimeException("Ошибка получения токена для банка " + getBankType());
     }
 
@@ -107,7 +100,7 @@ public abstract class AbstractBankClient implements BankClient {
 
         Map<String, Object> requestBody = Map.of(
                 "client_id", userId,
-                "permissions", List.of("ReadAccountsDetail", "ReadBalances", "ReadTransactionsDetail", "WriteAccounts"),
+                "permissions", List.of("ReadAccountsDetail", "ReadBalances", "ReadTransactionsDetail"),
                 "reason", "",
                 "requesting_bank", "test_bank",
                 "requesting_bank_name", "Test Bank"
@@ -214,7 +207,7 @@ public abstract class AbstractBankClient implements BankClient {
                 account.getTransactions().addAll(transactions);
 
             } catch (Exception e) {
-                System.out.println("Ошибка при сопоставлении аккаунтов и балансов: " + e.getMessage());
+                log.error("Ошибка при сопоставлении аккаунтов и балансов: {}", e.getMessage());
                 throw e;
             }
         }
@@ -252,7 +245,7 @@ public abstract class AbstractBankClient implements BankClient {
                 }
             }
         } catch (Exception e) {
-            System.out.println("Ошибка получения информации из банка " + getBankType().toString() + ": " + e.getMessage());
+            log.error("Ошибка получения информации из банка {}: {}", getBankType().toString(), e.getMessage());
             throw e;
         }
 
@@ -284,7 +277,7 @@ public abstract class AbstractBankClient implements BankClient {
                 }
             }
         } catch (Exception e) {
-            System.out.println("Ошибка получения информации из банка " + getBankType().toString() + ": " + e.getMessage());
+            log.error("Ошибка получения информации из банка {}: {}", getBankType().toString(), e.getMessage());
             throw e;
         }
         return List.of();
@@ -316,7 +309,7 @@ public abstract class AbstractBankClient implements BankClient {
                 }
             }
         } catch (Exception e) {
-            System.out.println("Ошибка получения транзакций для счета " + accountId + ": " + e.getMessage());
+            log.error("Ошибка получения транзакций для счета {}: {}", accountId, e.getMessage());
         }
 
         return List.of();
@@ -364,7 +357,7 @@ public abstract class AbstractBankClient implements BankClient {
             try {
                 balance.setDateTime(Instant.parse(dateTimeStr));
             } catch (Exception e) {
-                System.out.println("Ошибка при парсинге даты: " + dateTimeStr);
+                log.error("Ошибка при парсинге даты: {}", dateTimeStr);
             }
         }
 
@@ -395,7 +388,7 @@ public abstract class AbstractBankClient implements BankClient {
             try {
                 transaction.setBookingDateTime(Instant.parse(bookingDateTimeStr));
             } catch (Exception e) {
-                System.out.println("Ошибка парсинга bookingDateTime: " + bookingDateTimeStr);
+                log.error("Ошибка парсинга bookingDateTime: {}", bookingDateTimeStr);
             }
         }
 
@@ -403,7 +396,7 @@ public abstract class AbstractBankClient implements BankClient {
             try {
                 transaction.setValueDateTime(Instant.parse(valueDateTimeStr));
             } catch (Exception e) {
-                System.out.println("Ошибка парсинга valueDateTime: " + valueDateTimeStr);
+                log.error("Ошибка парсинга valueDateTime: {}", valueDateTimeStr);
             }
         }
 
@@ -734,14 +727,12 @@ public abstract class AbstractBankClient implements BankClient {
                             );
                         });
                 return true;
-            } else {
-                log.error("Ошибка при покупке продукта: статус={}, тело={}",
-                        responseEntity.getStatusCode(), responseEntity.getBody());
-                return false;
             }
+
+            return false;
+
         } catch (Exception e) {
             log.error("Не удалось приобрести продукт {}: {}", productId, e.getMessage());
-            log.error("Детали ошибки:", e);
             return false;
         }
     }
@@ -826,14 +817,12 @@ public abstract class AbstractBankClient implements BankClient {
             if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
                 log.info("Продукт успешно удалён");
                 return true;
-            } else {
-                log.error("Ошибка при удалении продукта: статус={}, тело={}",
-                        responseEntity.getStatusCode(), responseEntity.getBody());
-                return false;
             }
+
+            return false;
+
         } catch (Exception e) {
             log.error("Не удалось удалить продукт {}: {}", agreementId, e.getMessage());
-            log.error("Детали ошибки удаления:", e);
             return false;
         }
     }

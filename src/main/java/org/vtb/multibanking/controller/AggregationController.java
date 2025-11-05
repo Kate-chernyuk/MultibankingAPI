@@ -44,7 +44,7 @@ public class AggregationController {
 
             return ResponseEntity.ok(aggregationResult);
         } catch (Exception e) {
-            System.out.println("Ошибка аггрегации аккаунтов: " + e.getMessage());
+            log.error("Ошибка аггрегации аккаунтов: {}", e.getMessage());
 
             AggregationResult errorResult = AggregationResult.builder()
                     .success(false)

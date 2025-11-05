@@ -76,7 +76,7 @@ public class QuestEngineService {
         Optional<UserQuestEntity> existingCompletedQuest = userQuestRepository.findByUserIdAndQuestId(userId, questId);
         if (existingCompletedQuest.isPresent() &&
                 existingCompletedQuest.get().getStatus() == QuestStatus.COMPLETED) {
-            throw new Exception("Пользователь уже завершил этот квест");
+            throw new Exception("Пользователь(ница) уже завершил(а) этот квест");
         }
 
             if (questEntity.getRequiredTier() == SubscriptionTier.PREMIUM &&
@@ -86,7 +86,7 @@ public class QuestEngineService {
 
             if (questEntity.getMaxCompletions() != null &&
             questEntity.getCurrentCompletions() >= questEntity.getMaxCompletions()) {
-                throw new Exception("Достгнут лимит доступных квестов");
+                throw new Exception("Достигнут лимит доступных квестов");
             }
 
             Optional<UserQuestEntity> existingQuest = userQuestRepository.findByUserIdAndQuestId(userId, questId);
@@ -107,11 +107,10 @@ public class QuestEngineService {
 
     public Optional<QuestEntity> getCurrentUserQuest(String userId) {
         try {
-            // Получаем все активные (PENDING) квесты пользователя
             List<UserQuestEntity> userQuests = userQuestRepository.findByUserIdAndStatus(userId, QuestStatus.PENDING);
 
             if (userQuests.isEmpty()) {
-                log.info("У пользователя {} нет активных квестов", userId);
+                log.info("У пользователь(ницы) {} нет активных квестов", userId);
                 return Optional.empty();
             }
 
@@ -120,15 +119,15 @@ public class QuestEngineService {
 
             Optional<QuestEntity> quest = questRepository.findById(questId);
             if (quest.isEmpty()) {
-                log.warn("Квест {} не найден в репозитории для пользователя {}", questId, userId);
+                log.warn("Квест {} не найден в репозитории для пользователь(ницы) {}", questId, userId);
                 return Optional.empty();
             }
 
-            log.info("Найден текущий квест для пользователя {}: {}", userId, quest.get().getTitle());
+            log.info("Найден текущий квест для пользователь(ницы) {}: {}", userId, quest.get().getTitle());
             return quest;
 
         } catch (Exception e) {
-            log.error("Ошибка при получении текущего квеста для пользователя {}: {}", userId, e.getMessage());
+            log.error("Ошибка при получении текущего квеста для пользователь(ницы) {}: {}", userId, e.getMessage());
             return Optional.empty();
         }
     }
@@ -168,22 +167,16 @@ public class QuestEngineService {
 
     private boolean isQuestConditionMet(QuestEntity quest, Transaction transaction) {
         switch (quest.getQuestType()) {
-            case TRANSFER_AMOUNT: {
+            case TRANSFER_AMOUNT -> {
                 if (quest.getMinAmount() != null) {
                     BigDecimal txAmount = new BigDecimal(transaction.getAmount().getAmount());
                     return txAmount.compareTo(quest.getMinAmount()) >= 0;
                 }
-                break;
             }
-
-            case PAYMENT_OPERATION: {
+            case PAYMENT_OPERATION -> {
                 return transaction.getTransactionInformation() != null &&
                         transaction.getTransactionInformation().toLowerCase().contains("payment");
             }
-
-            case OPERATION_COUNT:
-                // Будет обрабатываться батч-процессингом
-                break;
         }
         return false;
     }
