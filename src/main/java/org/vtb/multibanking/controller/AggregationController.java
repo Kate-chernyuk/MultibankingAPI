@@ -31,6 +31,9 @@ public class AggregationController {
     public ResponseEntity<AggregationResult> aggregateAccounts(
             @PathVariable String clientId,
             @RequestParam(required = false) List<BankType> bankTypes) {
+        this.lastClientId = clientId;
+        this.lastBankTypes = bankTypes;
+
         try {
             AggregationResult aggregationResult;
             if (bankTypes != null && !bankTypes.isEmpty()) {
