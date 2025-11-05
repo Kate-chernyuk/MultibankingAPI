@@ -30,33 +30,4 @@ public class SBankClient extends AbstractBankClient {
         return BankType.SBANK;
     }
 
-    @Override
-    public List<Account> getAccounts(String clientId) throws Exception {
-        return fetchAccounts();
-    }
-
-    @Override
-    public String makePayment(String debtorAccount, String creditorAccount, Amount amount, BankType bankType) throws Exception {
-        return createPayment(debtorAccount, creditorAccount, amount, bankType);
-    }
-
-    @Override
-    public List<Product> listProductsCatalog() {
-        return getProductsCatalog();
-    }
-
-    @Override
-    public Boolean buyNewProduct(String productId, BigDecimal amount, String sourceAccountId) throws Exception {
-        return getProduct(productId, amount, sourceAccountId);
-    }
-
-    @Override
-    public List<Product> listClientProducts() throws Exception {
-        return getUserProductList();
-    }
-
-    @Override
-    public Boolean deleteSomeProduct(String agreementId, String repaymentAccountId, BigDecimal repaymentAmount) throws Exception{
-        return deleteProduct(agreementId, repaymentAccountId, repaymentAmount);
-    }
 }

@@ -48,7 +48,7 @@ public class PaymentController {
 
             BankClient bankClient = bankService.getBankClient(bankTypeFrom);
 
-            String paymentId = bankClient.makePayment(fromAccount, toAccount, amount, bankTypeTo);
+            String paymentId = bankClient.createPayment(fromAccount, toAccount, amount, bankTypeTo);
 
             return ResponseEntity.ok(Map.of(
                     "success", true,

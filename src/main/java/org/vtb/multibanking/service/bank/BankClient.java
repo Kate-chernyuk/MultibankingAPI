@@ -10,11 +10,11 @@ import java.util.List;
 
 public interface BankClient {
     BankType getBankType();
-    List<Account> getAccounts(String clientId) throws Exception;
+    List<Account> fetchAccounts() throws Exception;
     Account createAccount(String accountType, BigDecimal initialBalance) throws Exception;
-    String makePayment(String debtorAccount, String creditorAccount, Amount amount, BankType bankType) throws Exception;
-    List<Product> listProductsCatalog();
-    Boolean buyNewProduct(String productId, BigDecimal amount, String sourceAccountId) throws Exception;
-    List<Product> listClientProducts() throws Exception;
-    Boolean deleteSomeProduct(String agreementId, String repaymentAccountId, BigDecimal repaymentAmount) throws Exception;
+    String createPayment(String debtorAccount, String creditorAccount, Amount amount, BankType bankType) throws Exception;
+    List<Product> getProductsCatalog();
+    boolean getProduct(String productId, BigDecimal amount, String sourceAccountId) throws Exception;
+    List<Product> getUserProductList() throws Exception;
+    boolean deleteProduct(String agreementId, String repaymentAccountId, BigDecimal repaymentAmount) throws Exception;
 }

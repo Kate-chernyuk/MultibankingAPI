@@ -7,13 +7,13 @@ import org.springframework.web.bind.annotation.*;
 import org.vtb.multibanking.entity.quest.QuestEntity;
 import org.vtb.multibanking.entity.quest.UserProfileEntity;
 import org.vtb.multibanking.entity.quest.UserQuestEntity;
+import org.vtb.multibanking.service.bank.BankClient;
 import org.vtb.multibanking.service.quest.QuestEngineService;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/quests")
@@ -44,7 +44,7 @@ public class QuestController {
             UserQuestEntity userQuest = questEngineService.assignQuest(userId, questId);
             return ResponseEntity.ok(userQuest);
         } catch (Exception e) {
-            log.error("Error assigning quest to user: {}, quest: {}", userId, questId, e);
+            log.error("Не удалось назначить пользователь(нице) {} квест: {}", userId, questId, e);
             return ResponseEntity.badRequest().build();
         }
     }

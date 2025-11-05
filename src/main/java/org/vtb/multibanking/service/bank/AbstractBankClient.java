@@ -825,9 +825,4 @@ public abstract class AbstractBankClient implements BankClient {
             return false;
         }
     }
-
-    protected String getCurrentUserId() {
-        return this.userId;
-    }
-
 }

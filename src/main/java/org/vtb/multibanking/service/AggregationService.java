@@ -35,7 +35,7 @@ public class AggregationService {
                     .collect(Collectors.toList());
         }
         List<CompletableFuture<List<Account>>> futures = clientsToProcess.stream()
-                .map(client -> getAccountsAsync(client, clientId))
+                .map(this::getAccountsAsync)
                 .toList();
 
         List<Account> allAccounts = new ArrayList<>();
@@ -101,10 +101,10 @@ public class AggregationService {
                 .build();
     }
 
-    private CompletableFuture<List<Account>> getAccountsAsync(BankClient client, String clientId) {
+    private CompletableFuture<List<Account>> getAccountsAsync(BankClient client) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                return client.getAccounts(clientId);
+                return client.fetchAccounts();
             } catch (Exception e) {
                 log.error("Ошибка получения информации об аккаунтах из банка {}: {}", client.getBankType(), e.getMessage());
                 return List.of();

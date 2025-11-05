@@ -33,7 +33,7 @@ public class ProductController {
            for (BankType type: BankType.values()) {
                try {
                    var bankClient = bankService.getBankClient(type);
-                   List<Product> bankProducts = bankClient.listProductsCatalog();
+                   List<Product> bankProducts = bankClient.getProductsCatalog();
                    allProducts.addAll(bankProducts);
                } catch (Exception e) {
                    log.warn("Не удалось получить продукты банка {}: {}", type, e.getMessage());
@@ -86,7 +86,7 @@ public class ProductController {
             for (BankType type: BankType.values()) {
                 try {
                     var bankClient = bankService.getBankClient(type);
-                    List<Product> bankProducts = bankClient.listClientProducts();
+                    List<Product> bankProducts = bankClient.getUserProductList();
                     clientProducts.addAll(bankProducts);
                 } catch (Exception e) {
                     log.warn("Не удалось получить продукты банка {}: {}", type, e.getMessage());
@@ -151,7 +151,7 @@ public class ProductController {
             BigDecimal amount = BigDecimal.valueOf(Double.parseDouble((String) requestBody.get("amount")));
             String sourceAccountId = (String) requestBody.get("sourceAccountId");
 
-            Boolean success = bankClient.buyNewProduct(productId, amount, sourceAccountId);
+            Boolean success = bankClient.getProduct(productId, amount, sourceAccountId);
 
             Map<String, Object> response = new HashMap<>();
             if (Boolean.TRUE.equals(success)) {
@@ -203,7 +203,7 @@ public class ProductController {
             String repaymentAccountId = (String) requestBody.get("repaymentAccountId");
             BigDecimal repaymentAmount = BigDecimal.valueOf(Double.parseDouble((String) requestBody.get("repaymentAmount")));
 
-            Boolean success = bankClient.deleteSomeProduct(agreementId, repaymentAccountId, repaymentAmount);
+            Boolean success = bankClient.deleteProduct(agreementId, repaymentAccountId, repaymentAmount);
 
             Map<String, Object> response = new HashMap<>();
             if (Boolean.TRUE.equals(success)) {
