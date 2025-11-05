@@ -24,7 +24,7 @@ public class BankEventPublisher {
     }
 
     public void publishAccountEvent(Account account, String userId, AccountEvent.AccountEventType eventType) {
-        log.debug("Сообщение о запуске процесса открытия нового счёта пользователь(ницей)r: {}, тип: {}", (Object) userId, eventType);
+        log.debug("Сообщение о запуске процесса открытия нового счёта пользователь(ницей): {}, тип: {}", userId, eventType);
         eventPublisher.publishEvent(new AccountEvent(this, account, userId, eventType));
     }
 
