@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
 import org.vtb.multibanking.model.AggregationResult;
+import org.vtb.multibanking.model.BankType;
 import org.vtb.multibanking.model.Transaction;
 import org.vtb.multibanking.service.AggregationService;
 
@@ -22,12 +23,22 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AggregationController {
     private final AggregationService aggregationService;
+    private String lastClientId;
+    private List<BankType> lastBankTypes;
     //TODO отделить транзакции на фронте: сейчас общим фронтом
 
     @GetMapping("/aggregate/{clientId}")
-    public ResponseEntity<AggregationResult> aggregateAccounts(@PathVariable String clientId) {
+    public ResponseEntity<AggregationResult> aggregateAccounts(
+            @PathVariable String clientId,
+            @RequestParam(required = false) List<BankType> bankTypes) {
         try {
-            AggregationResult aggregationResult = aggregationService.aggregateAccounts(clientId);
+            AggregationResult aggregationResult;
+            if (bankTypes != null && !bankTypes.isEmpty()) {
+                aggregationResult = aggregationService.aggregateAccounts(clientId, bankTypes);
+            } else {
+                aggregationResult = aggregationService.aggregateAccounts(clientId, List.of());
+            }
+
             return ResponseEntity.ok(aggregationResult);
         } catch (Exception e) {
             System.out.println("Ошибка аггрегации аккаунтов: " + e.getMessage());
@@ -50,9 +61,17 @@ public class AggregationController {
     }
 
     @GetMapping("/transactions/{clientId}")
-    public ResponseEntity<Map<String, Object>> getAllUserTransactions(@PathVariable String clientId) {
+    public ResponseEntity<Map<String, Object>> getAllUserTransactions(
+            @PathVariable String clientId,
+            @RequestParam(required = false) List<BankType> bankTypes
+            ) {
         try {
-            AggregationResult aggregationResult = aggregationService.aggregateAccounts(clientId);
+            AggregationResult aggregationResult;
+            if (bankTypes != null && !bankTypes.isEmpty()) {
+                aggregationResult = aggregationService.aggregateAccounts(clientId, bankTypes);
+            } else {
+                aggregationResult = aggregationService.aggregateAccounts(clientId, List.of());
+            }
 
             List<Transaction> allTransactions = aggregationResult.getAccounts().stream()
                     .flatMap(acc -> acc.getTransactions().stream())
@@ -74,7 +93,7 @@ public class AggregationController {
     @Scheduled(cron = "${app.update.cron:0 */5 * * * *}")
     public void autoUpdate() {
         log.info("Автообновление данных...");
-        aggregateAccounts("team086-1");
+        aggregateAccounts(lastClientId, lastBankTypes);
         //TODO не забыть добавить автообновление на фронте - бек работает (см. консоль)
     }
 }

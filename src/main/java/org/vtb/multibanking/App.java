@@ -8,6 +8,8 @@ import org.springframework.context.annotation.Bean;
 import org.vtb.multibanking.model.AggregationResult;
 import org.vtb.multibanking.service.AggregationService;
 
+import java.util.List;
+
 @Slf4j
 @SpringBootApplication
 public class App {
@@ -30,7 +32,7 @@ public class App {
 
     public void runTest(AggregationService aggregationService) {
         try {
-            AggregationResult result = aggregationService.aggregateAccounts("team086");
+            AggregationResult result = aggregationService.aggregateAccounts("team086", List.of());
             log.info("Test successful for client: team086");
             log.info("Accounts found: {}", result.getAccounts().size());
             log.info("Total balance: {}", result.getTotalBalance());

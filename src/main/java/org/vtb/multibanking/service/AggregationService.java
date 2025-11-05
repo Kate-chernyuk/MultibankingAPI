@@ -10,11 +10,9 @@ import org.vtb.multibanking.service.bank.BankClient;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -28,8 +26,15 @@ public class AggregationService {
         this.executorService = Executors.newFixedThreadPool(bankClients.size());
     }
 
-    public AggregationResult aggregateAccounts(String clientId) {
-        List<CompletableFuture<List<Account>>> futures = bankClients.stream()
+    public AggregationResult aggregateAccounts(String clientId, List<BankType> bankTypes) {
+        List<BankClient> clientsToProcess = bankClients;
+
+        if (bankTypes != null && !bankTypes.isEmpty()) {
+            clientsToProcess = bankClients.stream()
+                    .filter(client -> bankTypes.contains(client.getBankType()))
+                    .collect(Collectors.toList());
+        }
+        List<CompletableFuture<List<Account>>> futures = clientsToProcess.stream()
                 .map(client -> getAccountsAsync(client, clientId))
                 .toList();
 
@@ -38,7 +43,7 @@ public class AggregationService {
         Map<String, BigDecimal> balanceByCurrency = new HashMap<>();
 
         for (int i = 0; i < futures.size(); i++) {
-            BankClient bankClient = bankClients.get(i);
+            BankClient bankClient = clientsToProcess.get(i);
             CompletableFuture<List<Account>> future = futures.get(i);
 
             try {
@@ -52,12 +57,12 @@ public class AggregationService {
 
                 balanceByBank.put(bankClient.getBankType(), bankTotal);
 
-                System.out.println("Число аккаутов в банке " + bankClient.getBankType() + ": " + bankAccounts.size() + "; общий баланс: " + bankTotal);
+                log.info("Число аккаутов в банке {}: {}; общий баланс: {}",  bankClient.getBankType(), bankAccounts.size(), bankTotal);
             } catch (TimeoutException te) {
-                System.out.println("Превышено время извлечения данных из банка " + bankClient.getBankType());
+                log.warn("Превышено время извлечения данных из банка {}", bankClient.getBankType());
                 balanceByBank.put(bankClient.getBankType(), BigDecimal.ZERO);
             } catch (Exception e) {
-                System.out.println("Ошибка при извлечении данных из банка " + bankClient.getBankType() + ":" + e.getMessage());
+                log.error("Ошибка при извлечении данных из банка {}: {}",bankClient.getBankType(), e.getMessage());
                 balanceByBank.put(bankClient.getBankType(), BigDecimal.ZERO);
             }
         }
@@ -101,7 +106,7 @@ public class AggregationService {
             try {
                 return client.getAccounts(clientId);
             } catch (Exception e) {
-                System.out.println("Ошибка получения информации об аккаунтах из банка " + client.getBankType() + ": " + e.getMessage());
+                log.error("Ошибка получения информации об аккаунтах из банка {}: {}", client.getBankType(), e.getMessage());
                 return List.of();
             }
         }, executorService);
