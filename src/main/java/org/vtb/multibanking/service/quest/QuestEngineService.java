@@ -52,11 +52,9 @@ public class QuestEngineService {
 
         List<UserQuestEntity> userQuests = userQuestRepository.findByUserId(userId);
 
-        List<QuestEntity> availableQuests = activeQuests.stream()
+        return activeQuests.stream()
                 .filter(quest -> !isQuestCompletedByUser(quest.getId(), userQuests))
                 .collect(Collectors.toList());
-
-        return availableQuests;
     }
 
     private boolean isQuestCompletedByUser(String questId, List<UserQuestEntity> userQuests) {

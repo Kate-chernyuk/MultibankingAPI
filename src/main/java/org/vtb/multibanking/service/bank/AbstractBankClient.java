@@ -31,7 +31,6 @@ public abstract class AbstractBankClient implements BankClient {
 
     private final ConsentService consentService;
     private String consent;
-    private String requestToConsent = null;
     private final BankEventPublisher bankEventPublisher;
 
     public AbstractBankClient(String baseUrl, String clientId, String clientSecret, String userId, ConsentService consentService, BankEventPublisher bankEventPublisher) {
@@ -142,7 +141,7 @@ public abstract class AbstractBankClient implements BankClient {
         throw new RuntimeException("Ошибка получения согласия для банка " + getBankType());
     }
 
-    protected void checkConsentStatus(String requestId) throws Exception {
+    protected void checkConsentStatus(String requestId) {
         String token = getToken();
         String statusUrl = baseUrl + "/account-consents/" + requestId;
 
@@ -252,7 +251,7 @@ public abstract class AbstractBankClient implements BankClient {
         return List.of();
     }
 
-    protected List<Balance> getAccountBalances(String accountId) throws Exception {
+    protected List<Balance> getAccountBalances(String accountId) {
         String balancesUrl = baseUrl + "/accounts/" + accountId + "/balances";
 
         HttpHeaders httpHeaders = new HttpHeaders();
@@ -283,7 +282,7 @@ public abstract class AbstractBankClient implements BankClient {
         return List.of();
     }
 
-    protected List<Transaction> getAccountTransactions(String accountId) throws Exception {
+    protected List<Transaction> getAccountTransactions(String accountId) {
         String transactionUrl = baseUrl + "/accounts/" + accountId + "/transactions";
 
         HttpHeaders httpHeaders = new HttpHeaders();
@@ -429,7 +428,7 @@ public abstract class AbstractBankClient implements BankClient {
         }
     }
 
-    protected String getPaymentConsent(String debtorAccount, Integer amount) throws Exception {
+    protected String getPaymentConsent(String debtorAccount, Integer amount) {
         String consentUrl = baseUrl + "/payment-consents/request";
 
         Map<String, Object> requestBody = Map.of(
@@ -570,8 +569,8 @@ public abstract class AbstractBankClient implements BankClient {
         product.setProductName(productData.containsKey("productName") ? (String) productData.get("productName") : (String) productData.get("product_name"));
         product.setDescription(productData.containsKey("description") ? (String) productData.get("description") : null);
         product.setInterestRate(productData.containsKey("interestRate") ? (String) productData.get("interestRate") : null);
-        product.setMinAmount(productData.containsKey("minAmount") ? (String) productData.get("minAmount") : (String) Double.toString((Double) productData.get("amount")));
-        product.setMaxAmount(productData.containsKey("maxAmount") ? (String) productData.get("maxAmount") : (String) Double.toString((Double) productData.get("amount")));
+        product.setMinAmount(productData.containsKey("minAmount") ? (String) productData.get("minAmount") : Double.toString((Double) productData.get("amount")));
+        product.setMaxAmount(productData.containsKey("maxAmount") ? (String) productData.get("maxAmount") : Double.toString((Double) productData.get("amount")));
         product.setTermMonth(productData.containsKey("termMonths") ? (Integer) productData.get("termMonths") : null);
         product.setAgreementId(productData.containsKey("agreement_id") ? (String) productData.get("agreement_id") : null);
         product.setStatus(productData.containsKey("status") ? (String) productData.get("status") : null);
@@ -635,7 +634,7 @@ public abstract class AbstractBankClient implements BankClient {
         throw new RuntimeException("Не удалось создать счет в банке " + getBankType());
     }
 
-    private void createProductAgreementConsent() throws Exception {
+    private void createProductAgreementConsent() {
         this.currentToken = getToken();
         String consentUrl = baseUrl + "/product-agreement-consents/request?client_id=" + userId;
 
