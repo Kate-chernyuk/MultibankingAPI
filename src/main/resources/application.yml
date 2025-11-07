@@ -38,6 +38,17 @@ bank:
       client-id: ${CLIENT_ID}
       client-secret: ${CLIENT_SECRET}
 
+gost:
+  api:
+    client-id: ${CLIENT_ID}
+    client-secret: ${CLIENT_SECRET}
+    gost-base-url: "https://api.bankingapi.ru"
+    auth-url: "https://auth.bankingapi.ru/auth/realms/kubernetes/protocol/openid-connect/token"
+
+cryptopro:
+  enabled: true
+  provider: JCP
+
 logging:
   level:
     org.vtb.multibanking: DEBUG
