@@ -100,7 +100,7 @@ public abstract class AbstractBankClient implements BankClient {
 
         Map<String, Object> requestBody = Map.of(
                 "client_id", userId,
-                "permissions", List.of("ReadAccountsDetail", "ReadBalances", "ReadTransactionsDetail"),
+                "permissions", List.of("ReadAccountsDetail", "ReadBalances", "ReadTransactionsDetail", "ManageAccounts"),
                 "reason", "",
                 "requesting_bank", "test_bank",
                 "requesting_bank_name", "Test Bank"
@@ -647,6 +647,43 @@ public abstract class AbstractBankClient implements BankClient {
         }
 
         throw new RuntimeException("Не удалось создать счет в банке " + getBankType());
+    }
+    public boolean closeAccount(String accountId, String action, String destinationAccountId) throws Exception {
+        getCurrentConsent();
+
+        String closeAccountUrl = baseUrl + "/accounts/" + accountId + "/close?client_id=" + userId;
+
+        Map<String, Object> requestBody = Map.of(
+                "action", action,
+                "destination_account_id", destinationAccountId
+        );
+
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setBearerAuth(getToken());
+        httpHeaders.set("accept", "application/json");
+        httpHeaders.set("account_id", accountId);
+        httpHeaders.set("client_id", userId);
+        httpHeaders.set("x-requesting-bank", clientId);
+        httpHeaders.set("x-consent-id", consent);
+        httpHeaders.setContentType(MediaType.APPLICATION_JSON);
+
+        try {
+            ResponseEntity<Map> responseEntity = restTemplate.exchange(
+                    closeAccountUrl, HttpMethod.PUT, new HttpEntity<>(requestBody, httpHeaders), Map.class
+            );
+
+            if (responseEntity.getStatusCode().is2xxSuccessful()) {
+                log.info("Счёт {} успешно закрыт", accountId);
+                return true;
+            } else {
+                log.error("Банк вернул ошибку при закрытии счета {}: статус {}, тело {}",
+                        accountId, responseEntity.getStatusCode(), responseEntity.getBody());
+                return false;
+            }
+        } catch (Exception e) {
+            log.error("Не удалось удалить счёт {} из банка {}: {}", accountId, getBankType(), e.getMessage());
+            return false;
+        }
     }
 
     private void createProductAgreementConsent() {

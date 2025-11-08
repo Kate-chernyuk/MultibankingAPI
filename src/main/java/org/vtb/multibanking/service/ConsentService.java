@@ -43,6 +43,7 @@ public class ConsentService {
                     existing.setRequestId(requestId);
                     existing.setStatus(status);
                     existing.setExpiresAt(expiresAt);
+                    existing.setPermissions(List.of("ReadAccountsDetail", "ReadBalances", "ReadTransactionsDetail", "ManageAccounts"));
                     return existing;
                 })
                 .orElse(createNewConsent(bankType, clientId, consentId, requestId, status, expiresAt));
@@ -61,7 +62,7 @@ public class ConsentService {
         consent.setRequestId(requestId);
         consent.setStatus(status);
         consent.setExpiresAt(expiresAt);
-        consent.setPermissions(List.of("ReadAccountsDetail", "ReadBalances", "ReadTransactionsDetail"));
+        consent.setPermissions(List.of("ReadAccountsDetail", "ReadBalances", "ReadTransactionsDetail", "ManageAccounts"));
         return consent;
     }
 

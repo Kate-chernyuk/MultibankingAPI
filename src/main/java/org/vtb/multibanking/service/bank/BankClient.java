@@ -17,4 +17,5 @@ public interface BankClient {
     boolean getProduct(String productId, BigDecimal amount, String sourceAccountId) throws Exception;
     List<Product> getUserProductList() throws Exception;
     boolean deleteProduct(String agreementId, String repaymentAccountId, BigDecimal repaymentAmount) throws Exception;
+    boolean closeAccount(String accountId, String action, String destinationAccountId) throws Exception;
 }
