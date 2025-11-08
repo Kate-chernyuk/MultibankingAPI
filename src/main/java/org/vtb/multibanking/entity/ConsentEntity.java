@@ -47,11 +47,6 @@ public class ConsentEntity {
     @Field("expires_at")
     private Instant expiresAt;
 
-    public boolean isActive() {
-        return ("APPROVED".equals(status) || "AUTHORIZED".equals(status))
-                && Instant.now().isBefore(expiresAt);
-    }
-
     public boolean isExpired() {
         return Instant.now().isAfter(expiresAt);
     }

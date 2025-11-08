@@ -31,6 +31,7 @@ public abstract class AbstractBankClient implements BankClient {
 
     private final ConsentService consentService;
     private String consent;
+    private String productConsent;
     private final BankEventPublisher bankEventPublisher;
 
     public AbstractBankClient(String baseUrl, String clientId, String clientSecret, String userId, ConsentService consentService, BankEventPublisher bankEventPublisher) {
@@ -106,7 +107,7 @@ public abstract class AbstractBankClient implements BankClient {
         );
 
         HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.setBearerAuth(getToken());
         httpHeaders.set("accept", "application/json");
         httpHeaders.set("x-requesting-bank", clientId);
         httpHeaders.setContentType(MediaType.APPLICATION_JSON);
@@ -174,11 +175,9 @@ public abstract class AbstractBankClient implements BankClient {
         }
     }
 
-    public List<Account> fetchAccounts() throws Exception {
-        this.currentToken = getToken();
-
+    private void getCurrentConsent() throws Exception {
         Optional<String> activeConsentOpt = consentService.getActiveConsentId(getBankType(), userId);
-        if (activeConsentOpt.isEmpty()) {
+        if (activeConsentOpt.isEmpty() || consentService.checkActiveConsentExpireTime(activeConsentOpt.get())) {
             createConsent();
 
             activeConsentOpt = consentService.getActiveConsentId(getBankType(), userId);
@@ -196,6 +195,25 @@ public abstract class AbstractBankClient implements BankClient {
         }
 
         this.consent = activeConsentOpt.get();
+    }
+
+    private void getCurrentProductConsent() throws Exception {
+        Optional<String> activeProductConsent = consentService.getActiveProductConsentId(getBankType(), userId);
+        if (activeProductConsent.isEmpty() || consentService.checkActiveProductConsentExpireTime(activeProductConsent.get())) {
+            createProductAgreementConsent();
+
+            activeProductConsent = consentService.getActiveProductConsentId(getBankType(), userId);
+
+            if (activeProductConsent.isEmpty()) {
+                throw new Exception("Не удалось получить действующее согласие для банка " + getBankType());
+            }
+        }
+
+        this.productConsent = activeProductConsent.get();
+    }
+
+    public List<Account> fetchAccounts() throws Exception {
+        getCurrentConsent();
 
         List<Account> accounts = getAccountList();
         for (Account account: accounts) {
@@ -222,7 +240,7 @@ public abstract class AbstractBankClient implements BankClient {
         String accountUrl = baseUrl + "/accounts?client_id=" + userId;
 
         HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.setBearerAuth(getToken());
         httpHeaders.set("accept", "application/json");
         httpHeaders.set("x-consent-id", consent);
         httpHeaders.set("x-requesting-bank", clientId);
@@ -255,7 +273,7 @@ public abstract class AbstractBankClient implements BankClient {
         String balancesUrl = baseUrl + "/accounts/" + accountId + "/balances";
 
         HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.setBearerAuth(getToken());
         httpHeaders.set("accept", "application/json");
         httpHeaders.set("x-consent-id", consent);
         httpHeaders.set("x-requesting-bank", clientId);
@@ -286,7 +304,7 @@ public abstract class AbstractBankClient implements BankClient {
         String transactionUrl = baseUrl + "/accounts/" + accountId + "/transactions";
 
         HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.setBearerAuth(getToken());
         httpHeaders.set("accept", "application/json");
         httpHeaders.set("x-consent-id", consent);
         httpHeaders.set("x-requesting-bank", clientId);
@@ -451,7 +469,7 @@ public abstract class AbstractBankClient implements BankClient {
         );
 
         HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.setBearerAuth(getToken());
         httpHeaders.set("accept", "application/json");
         httpHeaders.set("x-requesting-bank", clientId);
 
@@ -472,7 +490,6 @@ public abstract class AbstractBankClient implements BankClient {
     }
 
     public String createPayment(String debtorAccount, String creditorAccount, Amount amount, BankType bankType) throws Exception {
-        this.currentToken = getToken();
         String consent = getPaymentConsent(debtorAccount, Integer.valueOf(String.valueOf(amount.getAmount())));
         String paymentUrl = baseUrl + "/payments?client_id=" + userId;
 
@@ -500,7 +517,7 @@ public abstract class AbstractBankClient implements BankClient {
 
 
         HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.setBearerAuth(getToken());
         httpHeaders.set("accept", "application/json");
         httpHeaders.set("client_id", userId);
         httpHeaders.set("x-requesting-bank", clientId);
@@ -543,11 +560,10 @@ public abstract class AbstractBankClient implements BankClient {
     }
 
     public List<Product> getProductsCatalog() {
-        this.currentToken = getToken();
         String catalogUrl = baseUrl + "/products";
 
         HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.setBearerAuth(getToken());
         httpHeaders.set("accept", "application/json");
 
         try {
@@ -591,19 +607,8 @@ public abstract class AbstractBankClient implements BankClient {
     }
 
     public Account createAccount(String accountType, BigDecimal initialBalance) throws Exception {
-        this.currentToken = getToken();
-        Optional<String> activeConsent = consentService.getActiveConsentId(getBankType(), userId);
-        if (activeConsent.isEmpty()) {
-            createConsent();
+        getCurrentConsent();
 
-            activeConsent = consentService.getActiveConsentId(getBankType(), userId);
-
-            if (activeConsent.isEmpty()) {
-                throw new Exception("Не удалось получить действующее согласие для банка " + getBankType());
-            }
-        }
-
-        this.consent = activeConsent.get();
         String createAccountUrl = baseUrl + "/accounts?client_id=" + userId;
 
         Map<String, Object> requestBody = Map.of(
@@ -612,7 +617,7 @@ public abstract class AbstractBankClient implements BankClient {
         );
 
         HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.setBearerAuth(getToken());
         httpHeaders.set("accept", "application/json");
         httpHeaders.set("client_id", userId);
         httpHeaders.setContentType(MediaType.APPLICATION_JSON);
@@ -645,7 +650,6 @@ public abstract class AbstractBankClient implements BankClient {
     }
 
     private void createProductAgreementConsent() {
-        this.currentToken = getToken();
         String consentUrl = baseUrl + "/product-agreement-consents/request?client_id=" + userId;
 
         Map <String, Object> requestBody = Map.of(
@@ -660,7 +664,7 @@ public abstract class AbstractBankClient implements BankClient {
         );
 
         HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.setBearerAuth(getToken());
         httpHeaders.set("accept", "application/json");
         httpHeaders.setContentType(MediaType.APPLICATION_JSON);
         httpHeaders.set("client_id", userId);
@@ -690,19 +694,7 @@ public abstract class AbstractBankClient implements BankClient {
     }
 
     public boolean getProduct(String productId, BigDecimal amount, String sourceAccountId) throws Exception {
-        this.currentToken = getToken();
-
-        Optional<String> activeProductConsent = consentService.getActiveProductConsentId(getBankType(), userId);
-        if (activeProductConsent.isEmpty()) {
-            createProductAgreementConsent();
-
-            activeProductConsent = consentService.getActiveProductConsentId(getBankType(), userId);
-
-            if (activeProductConsent.isEmpty()) {
-                throw new Exception("Не удалось получить действующее согласие для банка " + getBankType());
-            }
-        }
-
+        getCurrentProductConsent();
         String getProductUrl = baseUrl + "/product-agreements?client_id=" + userId;
 
         Map<String, Object> requestBody = Map.of(
@@ -712,10 +704,10 @@ public abstract class AbstractBankClient implements BankClient {
         );
 
         HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.setBearerAuth(getToken());
         httpHeaders.set("accept", "application/json");
         httpHeaders.set("client_id", userId);
-        httpHeaders.set("x-product-agreement-consent-id", activeProductConsent.get());
+        httpHeaders.set("x-product-agreement-consent-id", productConsent);
         httpHeaders.set("x-requesting-bank", clientId);
         httpHeaders.setContentType(MediaType.APPLICATION_JSON);
 
@@ -747,26 +739,15 @@ public abstract class AbstractBankClient implements BankClient {
     }
 
     public List<Product> getUserProductList() throws Exception {
-        this.currentToken = getToken();
-
-        Optional<String> activeProductConsent = consentService.getActiveProductConsentId(getBankType(), userId);
-        if (activeProductConsent.isEmpty()) {
-            createProductAgreementConsent();
-
-            activeProductConsent = consentService.getActiveProductConsentId(getBankType(), userId);
-
-            if (activeProductConsent.isEmpty()) {
-                throw new Exception("Не удалось получить действующее согласие для банка " + getBankType());
-            }
-        }
+        getCurrentProductConsent();
 
         String getProductListUrl = baseUrl + "/product-agreements?client_id=" + userId;
 
         HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.setBearerAuth(getToken());
         httpHeaders.set("accept", "application/json");
         httpHeaders.set("client_id", userId);
-        httpHeaders.set("x-product-agreement-consent-id", activeProductConsent.get());
+        httpHeaders.set("x-product-agreement-consent-id", productConsent);
         httpHeaders.set("x-requesting-bank", clientId);
 
         try {
@@ -789,18 +770,7 @@ public abstract class AbstractBankClient implements BankClient {
     }
 
     public boolean deleteProduct(String agreementId, String repaymentAccountId, BigDecimal repaymentAmount) throws Exception {
-        this.currentToken = getToken();
-
-        Optional<String> activeProductConsent = consentService.getActiveProductConsentId(getBankType(), userId);
-        if (activeProductConsent.isEmpty()) {
-            createProductAgreementConsent();
-
-            activeProductConsent = consentService.getActiveProductConsentId(getBankType(), userId);
-
-            if (activeProductConsent.isEmpty()) {
-                throw new Exception("Не удалось получить действующее согласие для банка " + getBankType());
-            }
-        }
+       getCurrentProductConsent();
 
         String deleteProductUrl = baseUrl + "/product-agreements/" + agreementId + "?client_id=" + userId;
 
@@ -810,11 +780,11 @@ public abstract class AbstractBankClient implements BankClient {
         );
 
         HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setBearerAuth(currentToken);
+        httpHeaders.setBearerAuth(getToken());
         httpHeaders.set("accept", "application/json");
         httpHeaders.set("agreement_id", agreementId);
         httpHeaders.set("client_id", userId);
-        httpHeaders.set("x-product-agreement-consent-id", activeProductConsent.get());
+        httpHeaders.set("x-product-agreement-consent-id", productConsent);
         httpHeaders.set("x-requesting-bank", clientId);
         httpHeaders.setContentType(MediaType.APPLICATION_JSON);
 

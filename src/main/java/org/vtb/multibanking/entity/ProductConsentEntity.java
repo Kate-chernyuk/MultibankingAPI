@@ -41,13 +41,6 @@ public class ProductConsentEntity {
 
     @Field("created_at")
     private Instant createdAt = Instant.now();
-
-    public boolean isActive() {
-        return "approved".equals(status) &&
-                expiresAt != null &&
-                Instant.now().isBefore(expiresAt);
-    }
-
     public boolean isExpired() {
         return expiresAt != null && Instant.now().isAfter(expiresAt);
     }
