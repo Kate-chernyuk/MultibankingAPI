@@ -317,19 +317,30 @@ public abstract class AbstractBankClient implements BankClient {
     private Account mapToAccount(Map<String, Object> accountData) {
         Account account = new Account();
         account.setAccountId((String) accountData.get("accountId"));
+        account.setAccountNumber(accountData.containsKey("account_number") ? (String) accountData.get("account_number") : null);
         account.setStatus((String) accountData.get("status"));
-        account.setCurrency((String) accountData.get("currency"));
-        account.setAccountType((String) accountData.get("accountType"));
-        account.setAccountSubType((String) accountData.get("accountSubType"));
-        account.setNickname((String) accountData.get("nickname"));
-        account.setOpeningDate((String) accountData.get("openingDate"));
+        account.setCurrency(accountData.containsKey("currency") ? (String) accountData.get("currency") : null);
+        account.setAccountType(accountData.containsKey("accountType") ? (String) accountData.get("accountType") : (String) accountData.get("account_type"));
+        account.setAccountSubType(accountData.containsKey("accountSubType") ? (String) accountData.get("accountSubType") : null);
+        account.setNickname(accountData.containsKey("nickname") ? (String) accountData.get("nickname") : null);
+        account.setOpeningDate(accountData.containsKey("openingDate") ? (String) accountData.get("openingDate") : String.valueOf(Instant.now()));
 
-        List<Map<String, Object>> identificationsData = (List<Map<String, Object>>) accountData.get("account");
-        if (identificationsData != null) {
-            List<AccountIdentification> identifications = identificationsData.stream()
-                    .map(this::mapToAccountIdentification)
-                    .collect(Collectors.toList());
-            account.setAccountIdentifications(identifications);
+        if (accountData.containsKey("account")) {
+            List<Map<String, Object>> identificationsData = (List<Map<String, Object>>) accountData.get("account");
+            if (identificationsData != null) {
+                List<AccountIdentification> identifications = identificationsData.stream()
+                        .map(this::mapToAccountIdentification)
+                        .collect(Collectors.toList());
+                account.setAccountIdentifications(identifications);
+            }
+        }
+
+        String accountNumber = (String) accountData.get("account_number");
+        if (accountNumber != null) {
+            AccountIdentification identification = new AccountIdentification();
+            identification.setSchemeName("RU.CBR.PAN");
+            identification.setIdentification(accountNumber);
+            account.setAccountIdentifications(List.of(identification));
         }
 
         account.setBank(getBankType());
@@ -593,7 +604,7 @@ public abstract class AbstractBankClient implements BankClient {
         }
 
         this.consent = activeConsent.get();
-        String createAccountUrl = baseUrl + "/accounts";
+        String createAccountUrl = baseUrl + "/accounts?client_id=" + userId;
 
         Map<String, Object> requestBody = Map.of(
                 "account_type", accountType,
@@ -603,8 +614,7 @@ public abstract class AbstractBankClient implements BankClient {
         HttpHeaders httpHeaders = new HttpHeaders();
         httpHeaders.setBearerAuth(currentToken);
         httpHeaders.set("accept", "application/json");
-        httpHeaders.set("x-consent-id", consent);
-        httpHeaders.set("x-requesting-bank", clientId);
+        httpHeaders.set("client_id", userId);
         httpHeaders.setContentType(MediaType.APPLICATION_JSON);
 
         try {
@@ -615,7 +625,7 @@ public abstract class AbstractBankClient implements BankClient {
             log.info(responseEntity.toString());
 
             if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
-                Map<String, Object> accountData = (Map<String, Object>) responseEntity.getBody();
+                Map<String, Object> accountData = (Map<String, Object>) responseEntity.getBody().get("data");
 
                 Account newAccount = mapToAccount(accountData);
 

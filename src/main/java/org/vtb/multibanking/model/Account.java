@@ -15,6 +15,7 @@ import java.util.List;
 public class Account {
     private String accountId;
     private BankType bank;
+    private String accountNumber;
     private String status;
     private String currency;
     private String accountType;

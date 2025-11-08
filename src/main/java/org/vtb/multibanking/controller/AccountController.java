@@ -20,7 +20,6 @@ public class AccountController {
 
     private final BankService bankService;
 
-    //какая-то хтонь: в теории всё должно выполняться, на практике Ошибка создания нового счёта: 401 Unauthorized: [no body]
     @PostMapping("/{clientId}/create")
     public ResponseEntity<Account> createAccount(
             @PathVariable String clientId,
