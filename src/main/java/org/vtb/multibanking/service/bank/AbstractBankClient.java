@@ -100,7 +100,7 @@ public abstract class AbstractBankClient implements BankClient {
 
         Map<String, Object> requestBody = Map.of(
                 "client_id", userId,
-                "permissions", List.of("ReadAccountsDetail", "ReadBalances", "ReadTransactionsDetail", "ManageAccounts"),
+                "permissions", List.of("ReadAccountsDetail", "ReadBalances", "ReadTransactionsDetail", "ManageAccounts", "ManageCards", "ReadCards"),
                 "reason", "",
                 "requesting_bank", "test_bank",
                 "requesting_bank_name", "Test Bank"
@@ -443,6 +443,8 @@ public abstract class AbstractBankClient implements BankClient {
             transaction.setBankTransactionCode(code);
         }
 
+        transaction.setBankType(getBankType());
+
         return transaction;
     }
 
@@ -695,7 +697,7 @@ public abstract class AbstractBankClient implements BankClient {
                 "read_product_agreements", true,
                 "open_product_agreements", true,
                 "close_product_agreements", true,
-                "allowed_product_types", List.of("deposit", "loan", "card", "account"),
+                "allowed_product_types", List.of("deposit", "loan", "card", "account", "credit_card"),
                 "max_amount", 1000000.00,
                 "reason", "Финансовый агрегатор для управления продуктами"
         );
@@ -841,5 +843,201 @@ public abstract class AbstractBankClient implements BankClient {
             log.error("Не удалось удалить продукт {}: {}", agreementId, e.getMessage());
             return false;
         }
+    }
+
+    public List<Card> getCards() throws Exception {
+        getCurrentConsent();
+
+        String cardsUrl = baseUrl + "/cards?client_id=" + userId;
+
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setBearerAuth(getToken());
+        httpHeaders.set("accept", "application/json");
+        httpHeaders.set("x-consent-id", consent);
+        httpHeaders.set("x-requesting-bank", clientId);
+
+        try {
+            ResponseEntity<Map> responseEntity = restTemplate.exchange(
+                    cardsUrl, HttpMethod.GET, new HttpEntity<>(httpHeaders), Map.class
+            );
+
+            if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
+                Map<String, Object> data = (Map<String, Object>) responseEntity.getBody().get("data");
+                if (data != null) {
+                    List<Map<String, Object>> cardsData = (List<Map<String, Object>>) data.get("cards");
+                    if (cardsData != null) {
+                        return cardsData.stream()
+                                .map(this::mapToCard)
+                                .collect(Collectors.toList());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Ошибка получения списка карт: {}", e.getMessage());
+            throw e;
+        }
+
+        return List.of();
+    }
+
+    public Card getCardDetails(String cardId) throws Exception {
+        getCurrentConsent();
+
+        String cardUrl = baseUrl + "/cards/" + cardId + "?client_id=" + userId;
+
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setBearerAuth(getToken());
+        httpHeaders.set("accept", "application/json");
+        httpHeaders.set("x-consent-id", consent);
+        httpHeaders.set("x-requesting-bank", clientId);
+
+        try {
+            ResponseEntity<Map> responseEntity = restTemplate.exchange(
+                    cardUrl, HttpMethod.GET, new HttpEntity<>(httpHeaders), Map.class
+            );
+
+            if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
+                Map<String, Object> cardData = (Map<String, Object>) responseEntity.getBody().get("data");
+                return mapToCard(cardData);
+            }
+        } catch (Exception e) {
+            log.error("Ошибка получения деталей карты {}: {}", cardId, e.getMessage());
+            throw e;
+        }
+
+        return null;
+    }
+
+    public Card createCard(String accountNumber, String cardType, String cardName) throws Exception {
+        getCurrentConsent();
+
+        String createCardUrl = baseUrl + "/cards?client_id=" + userId;
+
+        Map<String, Object> requestBody = Map.of(
+                "account_number", accountNumber,
+                "card_type", cardType,
+                "card_name", cardName
+        );
+
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setBearerAuth(getToken());
+        httpHeaders.set("accept", "application/json");
+        httpHeaders.set("x-consent-id", consent);
+        httpHeaders.set("x-requesting-bank", clientId);
+        httpHeaders.setContentType(MediaType.APPLICATION_JSON);
+
+        try {
+            ResponseEntity<Map> responseEntity = restTemplate.exchange(
+                    createCardUrl, HttpMethod.POST, new HttpEntity<>(requestBody, httpHeaders), Map.class
+            );
+
+            if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
+                Map<String, Object> cardData = (Map<String, Object>) responseEntity.getBody().get("data");
+                Card newCard = mapToCard(cardData);
+                log.info("Карта успешно создана: {} для счета {}", newCard.getCardId(), accountNumber);
+                return newCard;
+            }
+        } catch (Exception e) {
+            log.error("Ошибка создания карты: {}", e.getMessage());
+            throw e;
+        }
+
+        throw new RuntimeException("Не удалось создать карту в банке " + getBankType());
+    }
+
+    public boolean deleteCard(String cardId) throws Exception {
+        getCurrentConsent();
+
+        String deleteCardUrl = baseUrl + "/cards/" + cardId + "?client_id=" + userId;
+
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setBearerAuth(getToken());
+        httpHeaders.set("accept", "application/json");
+        httpHeaders.set("x-consent-id", consent);
+        httpHeaders.set("x-requesting-bank", clientId);
+
+        try {
+            ResponseEntity<Map> responseEntity = restTemplate.exchange(
+                    deleteCardUrl, HttpMethod.DELETE, new HttpEntity<>(httpHeaders), Map.class
+            );
+
+            return responseEntity.getStatusCode().is2xxSuccessful();
+        } catch (Exception e) {
+            log.error("Ошибка удаления карты {}: {}", cardId, e.getMessage());
+            throw e;
+        }
+    }
+
+    private Card mapToCard(Map<String, Object> cardData) {
+        if (cardData == null) return null;
+
+        Card card = new Card();
+
+        card.setCardId(getStringSafe(cardData, "card_id", "cardId"));
+        card.setCardNumber(getStringSafe(cardData, "card_number", "cardNumber"));
+        card.setCardName(getStringSafe(cardData, "card_name", "cardName"));
+        card.setCardType(getStringSafe(cardData, "card_type", "cardType"));
+        card.setStatus(getStringSafe(cardData, "status"));
+        card.setAccountNumber(getStringSafe(cardData, "account_number", "accountNumber"));
+        card.setBankType(getBankType());
+
+        if (cardData.containsKey("issue_date")) {
+            try {
+                card.setIssueDate(Instant.parse((String) cardData.get("issue_date")));
+            } catch (Exception e) {
+                log.warn("Ошибка парсинга даты выпуска карты: {}", cardData.get("issue_date"));
+                card.setIssueDate(Instant.now());
+            }
+        } else {
+            card.setIssueDate(Instant.now());
+        }
+
+        if (cardData.containsKey("expiry_date")) {
+            try {
+                card.setExpiryDate(Instant.parse((String) cardData.get("expiry_date")));
+            } catch (Exception e) {
+                log.warn("Ошибка парсинга даты expiry карты: {}", cardData.get("expiry_date"));
+                card.setExpiryDate(Instant.now().plusSeconds(365 * 24 * 60 * 60)); // +1 год
+            }
+        } else {
+            card.setExpiryDate(Instant.now().plusSeconds(365 * 24 * 60 * 60));
+        }
+
+        if (cardData.containsKey("limits")) {
+            Map<String, Object> limitsData = (Map<String, Object>) cardData.get("limits");
+            CardLimits limits = new CardLimits();
+
+            if (limitsData != null) {
+                try {
+                    if (limitsData.get("daily_limit") != null) {
+                        limits.setDailyLimit(new BigDecimal(limitsData.get("daily_limit").toString()));
+                    }
+                    if (limitsData.get("monthly_limit") != null) {
+                        limits.setMonthlyLimit(new BigDecimal(limitsData.get("monthly_limit").toString()));
+                    }
+                    if (limitsData.get("single_transaction_limit") != null) {
+                        limits.setSingleTransactionLimit(new BigDecimal(limitsData.get("single_transaction_limit").toString()));
+                    }
+                    if (limitsData.get("currency") != null) {
+                        limits.setCurrency(limitsData.get("currency").toString());
+                    }
+                } catch (Exception e) {
+                    log.warn("Ошибка парсинга лимитов карты: {}", e.getMessage());
+                }
+            }
+
+            card.setLimits(limits);
+        }
+
+        return card;
+    }
+
+    private String getStringSafe(Map<String, Object> data, String... keys) {
+        for (String key : keys) {
+            if (data.containsKey(key) && data.get(key) != null) {
+                return data.get(key).toString();
+            }
+        }
+        return "N/A";
     }
 }
