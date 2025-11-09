@@ -57,6 +57,7 @@
         </ul>
         <div class="text-nowrap account">Аккаунт</div>
     </div>
+    </div>
 </div>
 </nav>
 <!-- блоки с информацией -->
@@ -271,43 +272,60 @@
 </div>
 
 <!-- Модальное окно для продуктов -->
-<div id="productModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <span class="text-12_377 text-heading-8_635">Открыть продукт</span>
-      <span class="close-modal">&times;</span>
+  <div id="productModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span class="text-12_377 text-heading-8_635">Открыть продукт</span>
+        <span class="close-modal">&times;</span>
+      </div>
+      <form id="productForm">
+        <div class="form-group">
+          <label for="productType" class="text-12_414 text-subheading-5_251">Выберите продукт:</label>
+          <select class="form-select" id="productType" name="productType" required>
+            <option value="" selected disabled>Загрузка продуктов...</option>
+            <!-- Продукты будут загружены динамически из каталога -->
+          </select>
+          <small class="form-help">Выберите продукт из доступных в каталоге</small>
+        </div>
+
+        <div id="productInfo" class="product-info" style="display: none; background: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+          <div class="info-row">
+            <span class="info-label">Банк:</span>
+            <span id="productBank" class="info-value">-</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Тип:</span>
+            <span id="productTypeDisplay" class="info-value">-</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Ставка:</span>
+            <span id="productRate" class="info-value">-</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Срок:</span>
+            <span id="productTerm" class="info-value">-</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="amount" class="text-12_414 text-subheading-5_251">Сумма (₽):</label>
+          <input type="number" class="form-input" id="amount" name="amount" required
+                 placeholder="Введите сумму" min="0">
+          <small id="amountHelp" class="form-help">Минимальная сумма: <span id="minAmount">0</span> ₽</small>
+        </div>
+
+        <div id="accountSelection" class="form-group" style="display: block;">
+          <label for="sourceAccount" class="text-12_414 text-subheading-5_251">Выберите счет для списания:</label>
+          <select class="form-select" id="sourceAccount" name="sourceAccount" required>
+            <option value="" selected disabled>Выберите счет</option>
+          </select>
+          <small id="accountBalance" class="form-help">Доступно: 0 ₽</small>
+        </div>
+
+        <button type="submit" id="createProductBtn" class="btn-submit" disabled>Открыть продукт</button>
+      </form>
     </div>
-    <form id="productForm">
-      <div class="form-group">
-        <label for="productType" class="text-12_414 text-subheading-5_251">Выберите продукт:</label>
-        <select class="form-select" id="productType" name="productType" required>
-          <option value="" selected disabled>Выберите продукт</option>
-          <option value="creditCard">Кредитная карта (16%)</option>
-          <option value="deposit">Вклад (12%)</option>
-          <option value="debitCard">Дебетовая карта (0%)</option>
-        </select>
-      </div>
-      
-      <div class="form-group">
-        <label for="amount" class="text-12_414 text-subheading-5_251">Сумма (₽):</label>
-        <input type="number" class="form-input" id="amount" name="amount" required 
-               placeholder="Введите сумму" min="0">
-        <small id="amountHelp" class="form-help">Минимальная сумма: <span id="minAmount">0</span> ₽</small>
-      </div>
-      
-      <!-- Блок выбора счета (для вклада и дебетовой карты) -->
-      <div id="accountSelection" class="form-group" style="display: none;">
-        <label for="sourceAccount" class="text-12_414 text-subheading-5_251">Выберите счет для списания:</label>
-        <select class="form-select" id="sourceAccount" name="sourceAccount">
-          <option value="" selected disabled>Выберите счет</option>
-        </select>
-        <small id="accountBalance" class="form-help">Доступно: 0 ₽</small>
-      </div>
-      
-      <button type="submit" id="createProductBtn" class="btn-submit" disabled>Открыть</button>
-    </form>
   </div>
-</div>
 
 <!-- Переводы -->
 <div id="transfers" class="block-main align-items-start">
