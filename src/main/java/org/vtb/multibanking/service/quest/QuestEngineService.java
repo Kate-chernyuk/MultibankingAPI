@@ -24,6 +24,7 @@ import org.vtb.multibanking.repository.UserQuestRepository;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -38,6 +39,87 @@ public class QuestEngineService {
     private final UserProfileRepository userProfileRepository;
     private final RewardService rewardService;
     private final MongoTemplate mongoTemplate;
+
+    public void processTransactionEvent(Transaction transaction, String userId) {
+        List<UserQuestEntity> pendingQuests = userQuestRepository.findByUserIdAndStatus(userId, QuestStatus.PENDING);
+
+        for (UserQuestEntity userQuest : pendingQuests) {
+            if (userQuest.getStatus() == QuestStatus.COMPLETED) {
+                continue;
+            }
+
+            QuestEntity quest = questRepository.findById(userQuest.getQuestId()).orElse(null);
+            if (quest != null && isTransactionQuestConditionMet(quest, transaction)) {
+                log.info("Условие квеста выполнено: questId={}, transactionId={}", quest.getId(), transaction.getTransactionId());
+
+                updateQuestProgress(userQuest, 1);
+
+                if (userQuest.getCurrentProgress() >= userQuest.getTargetProgress()) {
+                    log.info("Квест готов к завершению: questId={}, progress={}/{}",
+                            quest.getId(), userQuest.getCurrentProgress(), userQuest.getTargetProgress());
+                    completeQuest(userQuest, quest, transaction);
+                }
+            }
+        }
+    }
+
+    public void processAccountEvent(Account account, String userId) {
+        List<UserQuestEntity> pendingQuests = userQuestRepository.findByUserIdAndStatus(userId, QuestStatus.PENDING);
+
+        for (UserQuestEntity userQuest : pendingQuests) {
+            QuestEntity quest = questRepository.findById(userQuest.getQuestId()).orElse(null);
+            if (quest != null && quest.getQuestType() == QuestType.ACCOUNT_OPENING) {
+                completeQuest(userQuest, quest, account);
+            }
+        }
+    }
+
+    public void processProductEvent(Product product, String userId) {
+        List<UserQuestEntity> pendingQuests = userQuestRepository.findByUserIdAndStatus(userId, QuestStatus.PENDING);
+
+        for (UserQuestEntity userQuest : pendingQuests) {
+            QuestEntity quest = questRepository.findById(userQuest.getQuestId()).orElse(null);
+            if (quest != null && isProductQuestConditionMet(quest, product)) {
+                completeQuest(userQuest, quest, product);
+            }
+        }
+    }
+
+    private boolean isTransactionQuestConditionMet(QuestEntity quest, Transaction transaction) {
+        switch (quest.getQuestType()) {
+            case TRANSFER_AMOUNT -> {
+                if (quest.getMinAmount() != null) {
+                    BigDecimal txAmount = new BigDecimal(transaction.getAmount().getAmount());
+                    return txAmount.compareTo(quest.getMinAmount()) >= 0;
+                }
+            }
+            case PAYMENT_OPERATION -> {
+                return transaction.getTransactionInformation() != null &&
+                        transaction.getTransactionInformation().toLowerCase().contains("payment");
+            }
+        }
+        return false;
+    }
+
+    private boolean isProductQuestConditionMet(QuestEntity quest, Product product) {
+        switch (quest.getQuestType()) {
+            case PRODUCT_PURCHASE -> {
+                String requiredProductType = quest.getConditions().get("product_type");
+                if (requiredProductType != null && !"any".equals(requiredProductType)) {
+                    return requiredProductType.equalsIgnoreCase(product.getProductType());
+                }
+                return true;
+            }
+            case DEPOSIT_AMOUNT -> {
+                if ("deposit".equals(product.getProductType()) && quest.getMinAmount() != null) {
+                    BigDecimal productAmount = new BigDecimal(product.getMinAmount());
+                    return productAmount.compareTo(quest.getMinAmount()) >= 0;
+                }
+                return false;
+            }
+        }
+        return false;
+    }
 
     public List<QuestEntity> getAvailableQuests(String userId) {
         UserProfileEntity profile = getUserProfile(userId);
@@ -66,10 +148,10 @@ public class QuestEngineService {
     }
 
     public UserQuestEntity assignQuest(String userId, String questId) throws Exception {
-            QuestEntity questEntity = questRepository.findById(questId)
-                    .orElseThrow(() -> new Exception("Квест " + questId + "не найден"));
+        QuestEntity questEntity = questRepository.findById(questId)
+                .orElseThrow(() -> new Exception("Квест " + questId + "не найден"));
 
-            UserProfileEntity userProfileEntity = getUserProfile(userId);
+        UserProfileEntity userProfileEntity = getUserProfile(userId);
 
         Optional<UserQuestEntity> existingCompletedQuest = userQuestRepository.findByUserIdAndQuestId(userId, questId);
         if (existingCompletedQuest.isPresent() &&
@@ -77,30 +159,34 @@ public class QuestEngineService {
             throw new Exception("Пользователь(ница) уже завершил(а) этот квест");
         }
 
-            if (questEntity.getRequiredTier() == SubscriptionTier.PREMIUM &&
-            userProfileEntity.getSubscriptionTier() != SubscriptionTier.PREMIUM) {
-                throw new Exception("Для этого квеста необходима премиум-подписка");
-            }
+        if (questEntity.getRequiredTier() == SubscriptionTier.PREMIUM &&
+                userProfileEntity.getSubscriptionTier() != SubscriptionTier.PREMIUM) {
+            throw new Exception("Для этого квеста необходима премиум-подписка");
+        }
 
-            if (questEntity.getMaxCompletions() != null &&
-            questEntity.getCurrentCompletions() >= questEntity.getMaxCompletions()) {
-                throw new Exception("Достигнут лимит доступных квестов");
-            }
+        if (questEntity.getMaxCompletions() != null &&
+                questEntity.getCurrentCompletions() >= questEntity.getMaxCompletions()) {
+            throw new Exception("Достигнут лимит доступных квестов");
+        }
 
-            Optional<UserQuestEntity> existingQuest = userQuestRepository.findByUserIdAndQuestId(userId, questId);
-            if (existingQuest.isPresent()) {
-                throw new Exception("Пользователь(ница) в данный момент уже проходит квест");
-            }
+        Optional<UserQuestEntity> existingQuest = userQuestRepository.findByUserIdAndQuestId(userId, questId);
+        if (existingQuest.isPresent()) {
+            throw new Exception("Пользователь(ница) в данный момент уже проходит квест");
+        }
 
-            UserQuestEntity userQuestEntity = UserQuestEntity.builder()
-                    .userId(userId)
-                    .questId(questId)
-                    .status(QuestStatus.PENDING)
-                    .assignedAt(Instant.now())
-                    .rewardStatus(RewardStatus.PENDING)
-                    .build();
+        UserQuestEntity userQuestEntity = UserQuestEntity.builder()
+                .userId(userId)
+                .questId(questId)
+                .status(QuestStatus.PENDING)
+                .assignedAt(Instant.now())
+                .currentProgress(0)
+                .targetProgress(calculateTargetProgress(questEntity))
+                .rewardStatus(RewardStatus.PENDING.toString())
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
 
-            return userQuestRepository.save(userQuestEntity);
+        return userQuestRepository.save(userQuestEntity);
     }
 
     public Optional<QuestEntity> getCurrentUserQuest(String userId) {
@@ -108,14 +194,22 @@ public class QuestEngineService {
             List<UserQuestEntity> userQuests = userQuestRepository.findByUserIdAndStatus(userId, QuestStatus.PENDING);
 
             if (userQuests.isEmpty()) {
-                log.info("У пользователь(ницы) {} нет активных квестов", userId);
+                log.info("У пользователь(ницы) {} нет активных квестов, назначаем первый доступный", userId);
+                UserQuestEntity newQuest = assignFirstAvailableQuest(userId);
+                return questRepository.findById(newQuest.getQuestId());
+            }
+
+            UserQuestEntity currentUserQuest = userQuests.stream()
+                    .min(Comparator.comparing(UserQuestEntity::getAssignedAt))
+                    .orElse(null);
+
+            if (currentUserQuest == null) {
                 return Optional.empty();
             }
 
-            UserQuestEntity currentUserQuest = userQuests.get(0);
             String questId = currentUserQuest.getQuestId();
-
             Optional<QuestEntity> quest = questRepository.findById(questId);
+
             if (quest.isEmpty()) {
                 log.warn("Квест {} не найден в репозитории для пользователь(ницы) {}", questId, userId);
                 return Optional.empty();
@@ -130,75 +224,58 @@ public class QuestEngineService {
         }
     }
 
-    public void processTransactionEvent(Transaction transaction, String userId) {
-        List<UserQuestEntity> pendingQuests = userQuestRepository.findByUserIdAndStatus(userId, QuestStatus.PENDING);
+    private void updateQuestProgress(UserQuestEntity userQuest, int progressIncrement) {
+        int newProgress = userQuest.getCurrentProgress() + progressIncrement;
+        userQuest.setCurrentProgress(newProgress);
+        userQuest.setUpdatedAt(Instant.now());
+        userQuestRepository.save(userQuest);
 
-        for (UserQuestEntity userQuest : pendingQuests) {
-            QuestEntity quest = questRepository.findById(userQuest.getQuestId()).orElse(null);
-            if (quest != null && isQuestConditionMet(quest, transaction)) {
-                completeQuest(userQuest, quest, transaction);
-            }
-        }
-    }
-
-    public void processAccountEvent(Account account, String userId) {
-        List<UserQuestEntity> pendingQuests = userQuestRepository.findByUserIdAndStatus(userId, QuestStatus.PENDING);
-
-        for (UserQuestEntity userQuest : pendingQuests) {
-            QuestEntity quest = questRepository.findById(userQuest.getQuestId()).orElse(null);
-            if (quest != null && quest.getQuestType() == QuestType.ACCOUNT_OPENING) {
-                completeQuest(userQuest, quest, account);
-            }
-        }
-    }
-
-    public void processProductEvent(Product product, String userId) {
-        List<UserQuestEntity> pendingQuests = userQuestRepository.findByUserIdAndStatus(userId, QuestStatus.PENDING);
-
-        for (UserQuestEntity userQuest : pendingQuests) {
-            QuestEntity quest = questRepository.findById(userQuest.getQuestId()).orElse(null);
-            if (quest != null && quest.getQuestType() == QuestType.PRODUCT_PURCHASE) {
-                completeQuest(userQuest, quest, product);
-            }
-        }
-    }
-
-    private boolean isQuestConditionMet(QuestEntity quest, Transaction transaction) {
-        switch (quest.getQuestType()) {
-            case TRANSFER_AMOUNT -> {
-                if (quest.getMinAmount() != null) {
-                    BigDecimal txAmount = new BigDecimal(transaction.getAmount().getAmount());
-                    return txAmount.compareTo(quest.getMinAmount()) >= 0;
-                }
-            }
-            case PAYMENT_OPERATION -> {
-                return transaction.getTransactionInformation() != null &&
-                        transaction.getTransactionInformation().toLowerCase().contains("payment");
-            }
-        }
-        return false;
+        log.debug("Обновлен прогресс квеста {}: {}/{}",
+                userQuest.getQuestId(), newProgress, userQuest.getTargetProgress());
     }
 
     private void completeQuest(UserQuestEntity userQuest, QuestEntity quest, Object proofData) {
+        if (userQuest.getStatus() == QuestStatus.COMPLETED) {
+            log.warn("Квест {} уже завершен для пользователя {}", quest.getId(), userQuest.getUserId());
+            return;
+        }
+
         userQuest.setStatus(QuestStatus.COMPLETED);
         userQuest.setCompletedAt(Instant.now());
-        userQuest.setProofData(proofData != null ? proofData.toString() : null);
+        userQuest.setUpdatedAt(Instant.now());
 
-        String rewardCode = rewardService.generateReward(quest.getRewards());
-        userQuest.setRewardCode(rewardCode);
-        userQuest.setRewardStatus(RewardStatus.ACTIVATED);
+        try {
+            String rewardCode = rewardService.generateReward(quest.getRewards());
+            userQuest.setRewardStatus(RewardStatus.ACTIVATED.toString());
 
-        userQuestRepository.save(userQuest);
+            userQuestRepository.save(userQuest);
+            rewardService.activateUserReward(userQuest.getUserId(), rewardCode);
 
-        rewardService.activateUserReward(userQuest.getUserId(), rewardCode);
+            log.info("Квест завершен и награда активирована: userId={}, questId={}, rewardCode={}",
+                    userQuest.getUserId(), userQuest.getQuestId(), rewardCode);
+
+        } catch (Exception e) {
+            log.error("Ошибка при генерации награды для квеста {}: {}", quest.getId(), e.getMessage());
+            userQuest.setRewardStatus(RewardStatus.FAILED.toString());
+            userQuestRepository.save(userQuest);
+        }
 
         updateQuestCompletionCount(quest.getId());
 
         updateUserProfile(userQuest.getUserId(), quest);
 
-        log.info("Выполнен квест: userId={}, questId={}", userQuest.getUserId(), userQuest.getQuestId());
-    }
+        log.info("Выполнен квест: userId={}, questId={}, questTitle={}",
+                userQuest.getUserId(), userQuest.getQuestId(), quest.getTitle());
 
+        try {
+            UserQuestEntity nextQuest = assignFirstAvailableQuest(userQuest.getUserId());
+            log.info("Автоматически назначен следующий квест пользователю {}: {}",
+                    userQuest.getUserId(), nextQuest.getQuestId());
+        } catch (Exception e) {
+            log.warn("Не удалось назначить следующий квест пользователю {}: {}",
+                    userQuest.getUserId(), e.getMessage());
+        }
+    }
     private void updateQuestCompletionCount(String questId) {
         Query query = new Query(Criteria.where("id").is(questId));
         Update update = new Update().inc("currentCompletions", 1);
@@ -210,7 +287,8 @@ public class QuestEngineService {
         Update update = new Update()
                 .inc("activityPoints", quest.getPoints())
                 .inc("questsCompleted", 1)
-                .set("lastActivity", Instant.now());
+                .set("lastActivity", Instant.now())
+                .set("updatedAt", Instant.now());
 
         mongoTemplate.updateFirst(query, update, UserProfileEntity.class);
 
@@ -229,9 +307,12 @@ public class QuestEngineService {
                             .level(newLevel)
                             .achievedAt(Instant.now())
                             .pointsRequired(profile.getActivityPoints())
-                            .build());
+                            .build())
+                    .set("updatedAt", Instant.now());
 
             mongoTemplate.updateFirst(query, update, UserProfileEntity.class);
+
+            log.info("Пользователь {} достиг уровня {}", userId, newLevel);
         }
     }
 
@@ -265,5 +346,145 @@ public class QuestEngineService {
 
     public UserProfileEntity getUserProfileWithStats(String userId) {
         return getUserProfile(userId);
+    }
+
+    public UserQuestEntity assignFirstAvailableQuest(String userId) {
+        log.info("=== НАЧАЛО assignFirstAvailableQuest для пользователя {} ===", userId);
+
+        List<UserQuestEntity> activeQuests = userQuestRepository.findByUserIdAndStatus(userId, QuestStatus.PENDING);
+        if (!activeQuests.isEmpty()) {
+            log.info("У пользователя уже есть активные квесты: {}",
+                    activeQuests.stream().map(UserQuestEntity::getQuestId).collect(Collectors.toList()));
+            return activeQuests.get(0);
+        }
+
+        UserProfileEntity userProfile = getUserProfileWithStats(userId);
+        SubscriptionTier userTier = userProfile.getSubscriptionTier();
+
+        List<QuestEntity> availableQuests = questRepository.findByRequiredTierAndStatus(userTier, QuestStatus.ACTIVE);
+
+        if (availableQuests.isEmpty()) {
+            log.error("Нет доступных квестов для пользователя {} с подпиской {}", userId, userTier);
+            throw new RuntimeException("Нет доступных квестов для пользователя");
+        }
+
+        List<UserQuestEntity> userCompletedQuests = userQuestRepository.findByUserIdAndStatus(userId, QuestStatus.COMPLETED);
+        List<String> completedQuestIds = userCompletedQuests.stream()
+                .map(UserQuestEntity::getQuestId)
+                .collect(Collectors.toList());
+
+        log.info("Завершенные квесты пользователя: {}", completedQuestIds);
+        log.info("Доступные квесты: {}", availableQuests.stream().map(QuestEntity::getId).collect(Collectors.toList()));
+
+        Optional<QuestEntity> firstAvailableQuestOpt = availableQuests.stream()
+                .filter(quest -> !completedQuestIds.contains(quest.getId()))
+                .min(Comparator.comparing(QuestEntity::getQuestDifficulty));
+
+        if (firstAvailableQuestOpt.isEmpty()) {
+            log.error("Все доступные квесты уже завершены пользователем {}", userId);
+            throw new RuntimeException("Все доступные квесты уже завершены");
+        }
+
+        QuestEntity firstAvailableQuest = firstAvailableQuestOpt.get();
+        log.info("Выбран квест для назначения: ID={}, Title={}, Type={}",
+                firstAvailableQuest.getId(), firstAvailableQuest.getTitle(), firstAvailableQuest.getQuestType());
+
+        UserQuestEntity userQuest = UserQuestEntity.builder()
+                .userId(userId)
+                .questId(firstAvailableQuest.getId())
+                .status(QuestStatus.PENDING)
+                .assignedAt(Instant.now())
+                .currentProgress(0)
+                .targetProgress(calculateTargetProgress(firstAvailableQuest))
+                .rewardStatus(RewardStatus.PENDING.toString())
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+
+        UserQuestEntity savedQuest = userQuestRepository.save(userQuest);
+        log.info("Квест назначен пользователю: userId={}, questId={}", userId, savedQuest.getQuestId());
+
+        return savedQuest;
+    }
+
+    public UserQuestEntity completeCurrentQuestAndAssignNext(String userId, String questId) {
+        log.info("Ручное завершение квеста: userId={}, questId={}", userId, questId);
+
+        Optional<UserQuestEntity> userQuestOpt = userQuestRepository.findByUserIdAndQuestId(userId, questId);
+        if (userQuestOpt.isEmpty()) {
+            throw new RuntimeException("Квест не найден для пользователя");
+        }
+
+        UserQuestEntity userQuest = userQuestOpt.get();
+
+        if (userQuest.getStatus() == QuestStatus.COMPLETED) {
+            log.warn("Квест уже завершен: userId={}, questId={}", userId, questId);
+            return userQuest;
+        }
+
+        QuestEntity quest = questRepository.findById(questId)
+                .orElseThrow(() -> new RuntimeException("Квест не найден"));
+
+        if (userQuest.getCurrentProgress() < userQuest.getTargetProgress()) {
+            log.warn("Квест еще не выполнен: текущий прогресс {}/{}",
+                    userQuest.getCurrentProgress(), userQuest.getTargetProgress());
+            throw new RuntimeException("Квест еще не выполнен");
+        }
+
+        userQuest.setStatus(QuestStatus.COMPLETED);
+        userQuest.setCompletedAt(Instant.now());
+        userQuest.setUpdatedAt(Instant.now());
+        userQuestRepository.save(userQuest);
+
+        awardQuestRewards(userId, quest);
+
+        log.info("Квест успешно завершен: userId={}, questId={}", userId, questId);
+
+        try {
+            UserQuestEntity nextQuest = assignFirstAvailableQuest(userId);
+            log.info("Следующий квест назначен: {}", nextQuest.getQuestId());
+            return nextQuest;
+        } catch (Exception e) {
+            log.error("Ошибка при назначении следующего квеста: {}", e.getMessage());
+            throw new RuntimeException("Квест завершен, но не удалось назначить следующий: " + e.getMessage());
+        }
+    }
+
+
+    public void updateQuestProgress(String userId, String questType, int progressIncrement) {
+        List<UserQuestEntity> activeQuests = userQuestRepository.findByUserIdAndStatus(userId, QuestStatus.PENDING);
+
+        for (UserQuestEntity userQuest : activeQuests) {
+            QuestEntity quest = questRepository.findById(userQuest.getQuestId()).orElse(null);
+            if (quest != null && quest.getQuestType().name().equals(questType)) {
+                updateQuestProgress(userQuest, progressIncrement);
+
+                if (userQuest.getCurrentProgress() >= userQuest.getTargetProgress()) {
+                    completeCurrentQuestAndAssignNext(userId, quest.getId());
+                }
+                break;
+            }
+        }
+    }
+
+    private int calculateTargetProgress(QuestEntity quest) {
+        if (quest.getMinOperations() != null) {
+            return quest.getMinOperations();
+        }
+        if (quest.getMinAmount() != null) {
+            return 1;
+        }
+        return 1;
+    }
+
+    private void awardQuestRewards(String userId, QuestEntity quest) {
+        UserProfileEntity profile = getUserProfileWithStats(userId);
+
+        profile.setActivityPoints(profile.getActivityPoints() + quest.getPoints());
+        profile.setQuestsCompleted(profile.getQuestsCompleted() + 1);
+        profile.setUpdatedAt(Instant.now());
+
+        userProfileRepository.save(profile);
+        log.info("Пользователю {} начислено {} очков за квест {}", userId, quest.getPoints(), quest.getTitle());
     }
 }

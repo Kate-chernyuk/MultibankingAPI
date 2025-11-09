@@ -38,13 +38,58 @@ public class QuestController {
             @PathVariable String userId,
             @PathVariable String questId
     ) {
-        try
-        {
+        try {
             UserQuestEntity userQuest = questEngineService.assignQuest(userId, questId);
             return ResponseEntity.ok(userQuest);
         } catch (Exception e) {
             log.error("Не удалось назначить пользователь(нице) {} квест: {}", userId, questId, e);
             return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @PostMapping("/{userId}/assignFirst")
+    public ResponseEntity<UserQuestEntity> assignFirstQuest(@PathVariable String userId) {
+        try {
+            UserQuestEntity userQuest = questEngineService.assignFirstAvailableQuest(userId);
+            return ResponseEntity.ok(userQuest);
+        } catch (Exception e) {
+            log.error("Не удалось назначить первый квест пользователю {}: {}", userId, e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @PostMapping("/{userId}/complete/{questId}")
+    public ResponseEntity<UserQuestEntity> completeQuest(
+            @PathVariable String userId,
+            @PathVariable String questId
+    ) {
+        try {
+            UserQuestEntity nextQuest = questEngineService.completeCurrentQuestAndAssignNext(userId, questId);
+            return ResponseEntity.ok(nextQuest);
+        } catch (Exception e) {
+            log.error("Не удалось завершить квест {} для пользователя {}: {}", questId, userId, e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @PostMapping("/{userId}/updateProgress")
+    public ResponseEntity<Map<String, Object>> updateQuestProgress(
+            @PathVariable String userId,
+            @RequestParam String questType,
+            @RequestParam int progressIncrement
+    ) {
+        try {
+            questEngineService.updateQuestProgress(userId, questType, progressIncrement);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Прогресс квеста обновлен"
+            ));
+        } catch (Exception e) {
+            log.error("Не удалось обновить прогресс для пользователя {}: {}", userId, e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
         }
     }
 
@@ -59,7 +104,7 @@ public class QuestController {
         }
     }
 
-    @GetMapping("{userId}/currentQuest")
+    @GetMapping("/{userId}/currentQuest")
     public ResponseEntity<Map<String, Object>> getCurrentUserQuest(@PathVariable String userId) {
         try {
             Optional<QuestEntity> userQuestOpt = questEngineService.getCurrentUserQuest(userId);
@@ -86,7 +131,7 @@ public class QuestController {
         }
     }
 
-    @GetMapping("{userId}/dashboard")
+    @GetMapping("/{userId}/dashboard")
     public ResponseEntity<Map<String, Object>> getQuestDashboard(@PathVariable String userId) {
         try {
             UserProfileEntity profile = questEngineService.getUserProfileWithStats(userId);

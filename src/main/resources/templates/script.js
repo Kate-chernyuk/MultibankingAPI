@@ -147,6 +147,24 @@ class ApiService {
         });
     }
 
+    async assignFirstQuest() {
+        return this.makeRequest(`${this.baseUrl}/quests/${this.userId}/assignFirst`, {
+            method: 'POST'
+        });
+    }
+
+    async completeQuest(questId) {
+        return this.makeRequest(`${this.baseUrl}/quests/${this.userId}/complete/${questId}`, {
+            method: 'POST'
+        });
+    }
+
+    async updateQuestProgress(questType, progressIncrement) {
+        return this.makeRequest(`${this.baseUrl}/quests/${this.userId}/updateProgress?questType=${questType}&progressIncrement=${progressIncrement}`, {
+            method: 'POST'
+        });
+    }
+
     async getQuestDashboard() {
         return this.makeRequest(`${this.baseUrl}/quests/${this.userId}/dashboard`);
     }
@@ -186,6 +204,7 @@ class ApiService {
         });
     }
 }
+
 const apiService = new ApiService();
 
 const EventManager = {
@@ -337,44 +356,6 @@ async function loadAccounts() {
     }
 }
 
-async function loadCards() {
-    try {
-        const data = await apiService.getCards();
-        console.log('Данные карт:', data);
-
-        if (data.success && data.cards) {
-            const cardProducts = data.cards.map(card => ({
-                id: card.cardId,
-                type: 'CARD',
-                typeDisplay: 'Карта',
-                name: card.cardName,
-                amount: 0,
-                amountRange: '0 ₽',
-                rate: '-',
-                status: card.status === 'active' ? 'ACTIVE' : 'INACTIVE',
-                bank: card.bankType,
-                agreementId: card.cardId,
-                term: `до ${new Date(card.expiryDate).toLocaleDateString('ru-RU')}`,
-                creditDebit: card.cardType === 'credit' ? 'CREDIT' : 'DEBIT',
-                cardNumber: card.cardNumber,
-                formattedCardNumber: card.formattedCardNumber,
-                accountNumber: card.accountNumber,
-                issueDate: card.issueDate,
-                expiryDate: card.expiryDate,
-                cardType: card.cardType,
-                cardTypeDisplay: card.cardTypeDisplay,
-                isCard: true
-            }));
-
-            console.log('Преобразованные карты:', cardProducts);
-            return cardProducts;
-        }
-        return [];
-    } catch (error) {
-        console.error('Ошибка загрузки карт:', error);
-        return [];
-    }
-}
 async function loadProducts() {
     try {
         const productsData = await apiService.getUserProducts();
@@ -448,8 +429,6 @@ async function loadProducts() {
     }
 }
 
-
-
 async function loadTransactions() {
     try {
         const data = await apiService.getTransactions();
@@ -487,40 +466,55 @@ async function loadTransactions() {
         throw error;
     }
 }
-
 async function loadQuests() {
     try {
-        const [questsData, currentQuestData] = await Promise.all([
-            apiService.getQuests(),
-            apiService.getCurrentQuest()
+        console.log('🔄 Загрузка данных квестов...');
+
+        const [currentQuestData, userProfile, availableQuests] = await Promise.all([
+            apiService.getCurrentQuest(),
+            apiService.getUserProfile(),
+            apiService.getQuests()
         ]);
 
-        if (questsData && Array.isArray(questsData)) {
-            questData.freeQuests = questsData.map(quest => ({
-                id: quest.id,
-                description: quest.description,
-                prize: quest.rewards.questType,
-                target: quest.conditions.action,
-                completed: quest.completed || false,
-                points: quest.points || 5,
-                type: quest.questType
-            }));
+        infoData.currentQuest = null;
+
+        if (currentQuestData && currentQuestData.success !== false) {
+            if (currentQuestData.quest) {
+                infoData.currentQuest = currentQuestData.quest;
+                console.log('✅ Активный квест найден:', infoData.currentQuest);
+            } else if (currentQuestData.message && currentQuestData.message.includes('нет активных')) {
+                console.log('ℹ️ У пользователя нет активных квестов');
+                // Проверяем есть ли доступные квесты
+                if (availableQuests && availableQuests.length > 0) {
+                    console.log('🎯 Есть доступные квесты, но не назначены');
+                    showQuestsAvailableButNotAssigned();
+                } else {
+                    console.log('❌ Нет доступных квестов');
+                    showNoQuestsAvailable();
+                }
+            } else {
+                console.log('ℹ️ Нет данных о текущем квесте');
+                showNoQuestsAvailable();
+            }
+        } else {
+            console.log('❌ Ошибка в ответе currentQuest:', currentQuestData);
+            showNoQuestsAvailable();
         }
 
-        if (currentQuestData && currentQuestData.success && currentQuestData.quest) {
-            const quest = currentQuestData.quest;
-            infoData.currentQuest = {
-                description: quest.description,
-                prize: quest.rewards.questType,
-                completed: quest.completed || false
-            };
+        if (userProfile) {
+            questData.activePoints = userProfile.activityPoints || 0;
+            questData.isPremium = userProfile.subscriptionTier === "PREMIUM";
+            questData.questsCompleted = userProfile.questsCompleted || 0;
+            updateActivePointsDisplay();
         }
 
         updateQuestDisplay();
-        updateInfoBlock();
+        console.log('✅ Данные квестов загружены');
+
     } catch (error) {
-        console.error('Ошибка загрузки квестов:', error);
-        throw error;
+        console.error('❌ Ошибка загрузки квестов:', error);
+        infoData.currentQuest = null;
+        showNoQuestsAvailable();
     }
 }
 
@@ -530,6 +524,7 @@ async function loadUserProfile() {
         if (profileData) {
             questData.activePoints = profileData.activityPoints || 0;
             questData.isPremium = profileData.subscriptionTier === "PREMIUM";
+            questData.questsCompleted = profileData.questsCompleted || 0;
             updateActivePointsDisplay();
         }
     } catch (error) {
@@ -539,7 +534,6 @@ async function loadUserProfile() {
 }
 
 let productsCatalog = [];
-let selectedProductForPurchase = null;
 
 async function loadProductsCatalog() {
     try {
@@ -751,28 +745,57 @@ function updateHistoryDisplay() {
 }
 
 function updateQuestDisplay() {
-    const currentQuest = getCurrentQuest();
+    const currentQuest = infoData.currentQuest;
 
     if (!currentQuest) {
-        showNoQuestsMessage();
+        showNoQuestsAvailable();
         return;
     }
 
     const questDescription = document.getElementById('40_209');
     if (questDescription) {
-        questDescription.textContent = currentQuest.description;
+        questDescription.textContent = currentQuest.description || currentQuest.title || 'Описание квеста';
     }
 
     updateQuestProgressBar(currentQuest);
 
     const prizeText = document.getElementById('questPrizeText');
     if (prizeText) {
-        prizeText.textContent = `Приз: ${currentQuest.prize}`;
+        prizeText.textContent = `Приз: ${getPrizeDisplayName(currentQuest)}`;
     }
 
     const completeBtn = document.getElementById('completeQuestBtn');
     if (completeBtn) {
         completeBtn.style.display = 'block';
+        completeBtn.onclick = () => { handleCompleteQuest(currentQuest.id), refreshQuests() };
+    }
+}
+
+function showNoQuestsAvailable() {
+    const questDescription = document.getElementById('40_209');
+    const progressText = document.getElementById('40_178');
+    const prizeText = document.getElementById('questPrizeText');
+    const completeBtn = document.getElementById('completeQuestBtn');
+    const progressBar = document.querySelector('.rectangle-40_177.quest-progress-bar');
+
+    if (questDescription) {
+        questDescription.textContent = "Квесты временно недоступны";
+    }
+
+    if (progressText) {
+        progressText.textContent = "0/0";
+    }
+
+    if (prizeText) {
+        prizeText.textContent = "Попробуйте обновить страницу";
+    }
+
+    if (completeBtn) {
+        completeBtn.style.display = 'none';
+    }
+
+    if (progressBar) {
+        progressBar.style.width = '0%';
     }
 }
 
@@ -805,40 +828,6 @@ function updateActivePointsDisplay() {
             levelText.textContent = `Уровень: ${levelInfo.level}`;
             levelText.className = `points-level ${levelInfo.level.toLowerCase()}`;
         }
-    }
-}
-
-function showNoQuestsMessage() {
-    const questDescription = document.getElementById('40_209');
-    const progressText = document.getElementById('40_178');
-    const prizeText = document.getElementById('questPrizeText');
-    const completeBtn = document.getElementById('completeQuestBtn');
-    const progressBar = document.querySelector('.rectangle-40_177.quest-progress-bar');
-
-    if (questDescription) {
-        questDescription.textContent = questData.isPremium
-            ? "Все премиум квесты выполнены!"
-            : "Все бесплатные квесты выполнены!";
-    }
-
-    if (progressText) {
-        progressText.textContent = questData.isPremium ? "10/10" : "3/3";
-    }
-
-    if (prizeText) {
-        prizeText.textContent = "Отличная работа!";
-    }
-
-    if (completeBtn) {
-        completeBtn.style.display = 'none';
-    }
-
-    if (progressBar) {
-        progressBar.style.width = '100%';
-    }
-
-    if (!questData.isPremium) {
-        showPremiumBlockPermanent();
     }
 }
 
@@ -925,7 +914,7 @@ async function createAccount(bankName) {
     }
 }
 
-let closeAccountModal, closeAccountBtn, confirmCloseAccountBtn, transferToAccountSelect;
+let closeAccountModal, confirmCloseAccountBtn, transferToAccountSelect;
 let currentClosingAccount = null;
 
 async function closeAccount(accountId) {
@@ -2229,22 +2218,12 @@ function initializeQuests() {
     setupQuestEventListeners();
     updateQuestDisplay();
     updateActivePointsDisplay();
-    hidePremiumBlock();
-    setInitialQuestBackground();
-    preloadQuestImages();
 }
 
 function setupQuestEventListeners() {
     const completeBtn = document.getElementById('completeQuestBtn');
     if (completeBtn) {
         completeBtn.addEventListener('click', handleCompleteQuest);
-    }
-
-    const buyPremiumBtn = document.getElementById('buyPremiumBtn');
-    if (buyPremiumBtn) {
-        buyPremiumBtn.addEventListener('mouseenter', showPremiumBlock);
-        buyPremiumBtn.addEventListener('mouseleave', hidePremiumBlock);
-        buyPremiumBtn.addEventListener('click', showPremiumModal);
     }
 }
 
@@ -2333,11 +2312,26 @@ function updateQuestProgressBar(quest) {
 
     if (!progressText || !progressBar) return;
 
-    const progressValue = calculateProgressPercent(quest);
-    const progressTextValue = getProgressText(quest);
+    const progressValue = calculateQuestProgress(quest);
+    const progressTextValue = getQuestProgressText(quest);
 
     progressText.textContent = progressTextValue;
     progressBar.style.width = `${progressValue}%`;
+}
+
+function calculateQuestProgress(quest) {
+    if (!quest.currentProgress || !quest.targetProgress) return 0;
+    return Math.min((quest.currentProgress / quest.targetProgress) * 100, 100);
+}
+
+function getQuestProgressText(quest) {
+    if (quest.minOperations) {
+        return `${quest.currentProgress || 0}/${quest.minOperations}`;
+    }
+    if (quest.minAmount) {
+        return quest.currentProgress >= 1 ? '1/1' : '0/1';
+    }
+    return `${quest.currentProgress || 0}/1`;
 }
 
 const progressNotificationStyles = `
@@ -2398,16 +2392,55 @@ styleSheet.textContent = progressNotificationStyles;
 document.head.appendChild(styleSheet);
 
 function getCurrentQuest() {
-    if (questData.isPremium) {
-        const activeQuest = questData.premiumQuests.find(q => !q.completed);
-        return activeQuest || null;
-    } else {
-        if (questData.currentFreeQuestIndex < questData.freeQuests.length) {
-            return questData.freeQuests[questData.currentFreeQuestIndex];
-        }
-        return null;
+    return infoData.currentQuest;
+}
+
+function calculateTargetProgress(quest) {
+    if (quest.minOperations) {
+        return quest.minOperations;
+    }
+    if (quest.minAmount) {
+        return 1;
+    }
+    return 1;
+}
+
+function getPrizeDisplayName(quest) {
+    if (quest.rewards && quest.rewards.prizeName) {
+        return quest.rewards.prizeName;
+    }
+
+    const rewards = quest.rewards || {};
+    switch (rewards.questType) {
+        case 'partner_discount':
+            return `Скидка ${rewards.value}% у партнера`;
+        case 'cashback':
+            return `Кэшбэк ${rewards.value}% ${getCategoryDisplay(rewards.category)}`;
+        case 'bonus_points':
+            return `${rewards.value} бонусных баллов`;
+        case 'premium_service':
+            return `Бесплатный ${rewards.duration} обслуживания`;
+        case 'premium_cashback':
+            return `Премиальный кэшбэк ${rewards.value}%`;
+        default:
+            return rewards.questType || 'Награда';
     }
 }
+
+function getCategoryDisplay(category) {
+    const categoryMap = {
+        'restaurants': 'на рестораны',
+        'shopping': 'на покупки',
+        'all': 'на все покупки',
+        'savings': 'по накоплениям',
+        'credit': 'по кредитам',
+        'cards': 'по картам',
+        'premium': 'премиум'
+    };
+    return categoryMap[category] || '';
+}
+
+
 
 function showPremiumBlock() {
     const premiumBlock = document.getElementById('11_927');
@@ -2430,49 +2463,126 @@ function showPremiumBlockPermanent() {
     }
 }
 
-function handleCompleteQuest() {
-    const currentQuest = getCurrentQuest();
+async function handleCompleteQuest(questId) {
+    if (!questId && infoData.currentQuest) {
+        questId = infoData.currentQuest.id;
+    }
 
-    if (!currentQuest) {
-        showAllQuestsCompletedModal();
+    if (!questId) {
+        showError('Квест не найден');
         return;
     }
 
-    const isCompleted = checkQuestCompletion(currentQuest);
+    try {
+        console.log('🎯 Завершение квеста:', questId);
 
-    if (isCompleted) {
-        showQuestCompletedModal(currentQuest);
-    } else {
-        showQuestNotCompletedModal(currentQuest);
-    }
-}
+        const result = await apiService.completeQuest(questId);
+        console.log('📋 Результат завершения квеста:', result);
 
-function checkQuestCompletion(quest) {
-    if (typeof quest.target === 'number') {
-        return quest.currentProgress >= quest.target;
-    } else {
-        switch (quest.target) {
-            case 'new_account':
-                return accounts.length > 1;
-            case 'transfers':
-                return quest.currentProgress >= 3;
-            case 'credit_card':
-                return false;
-            case 'mobile_bank':
-                return quest.currentProgress >= 7;
-            case 'payments':
-                return quest.currentProgress >= 5;
-            case 'referral':
-                return quest.completed;
-            case 'autopayment':
-                return quest.completed;
-            case 'all_services':
-                return quest.currentProgress >= 5;
-            default:
-                return false;
+        if (result && (result.success || result.message?.includes('уже завершен') || result.message?.includes('already completed'))) {
+            console.log('ℹ️ Квест уже завершен, обновляем данные...');
+            await loadQuests();
+            showSuccess('✅ Данные квестов обновлены!');
+            return;
+        }
+
+        if (result && result.success) {
+            showSuccess('✅ Квест завершен! Обновляем данные...');
+            await loadQuests();
+            showSuccess('🎉 Квест успешно завершен!');
+        } else {
+            const errorMsg = result?.message || 'Не удалось завершить квест';
+            showError(errorMsg);
+        }
+    } catch (error) {
+        console.error('💥 Ошибка завершения квеста:', error);
+
+        if (error.message.includes('уже завершен') || error.message.includes('already completed') || error.message.includes('Квест уже завершен')) {
+            console.log('ℹ️ Квест уже завершен, обновляем данные...');
+            await loadQuests();
+            showSuccess('✅ Данные квестов обновлены!');
+            return;
+        }
+
+        if (error.message.includes('Failed to fetch')) {
+            showError('❌ Ошибка соединения с сервером. Проверьте подключение.');
+        } else if (error.message.includes('404') || error.message.includes('не найден')) {
+            showError('🔍 Квест не найден. Обновляем список...');
+            await loadQuests();
+        } else if (error.message.includes('еще не выполнен') || error.message.includes('not completed')) {
+            showError('⏳ Квест еще не выполнен! Продолжайте выполнять условия.');
+        } else if (error.message.includes('Все доступные квесты уже завершены')) {
+            showSuccess('🎉 Все квесты завершены! Ожидайте новые задания.');
+            await loadQuests();
+        } else {
+            showError('❌ Не удалось завершить квест: ' + error.message);
         }
     }
 }
+
+async function refreshQuests() {
+    try {
+        console.log('🔄 Принудительное обновление квестов...');
+        await loadQuests();
+        console.log('✅ Квесты обновлены');
+    } catch (error) {
+        console.error('❌ Ошибка обновления квестов:', error);
+    }
+}
+
+function getPrizeDisplayName(quest) {
+    if (!quest) return 'Награда';
+
+    if (quest.prize) {
+        return quest.prize;
+    }
+
+    if (quest.rewards) {
+        if (typeof quest.rewards === 'string') {
+            return quest.rewards;
+        }
+        if (quest.rewards.prizeName) {
+            return quest.rewards.prizeName;
+        }
+    }
+
+    if (quest.points) {
+        return `${quest.points} очков активности`;
+    }
+
+    return 'Секретная награда';
+}
+
+function updateQuestProgressFromBackend() {
+    if (!infoData.currentQuest) return;
+
+    console.log('🔄 Принудительное обновление прогресса квеста:', infoData.currentQuest.id);
+
+    updateQuestProgressBar(infoData.currentQuest);
+
+    updateQuestDisplay();
+}
+
+/*
+async function checkQuestCompletion(questId) {
+    const currentQuest = getCurrentQuest();
+    if (!currentQuest) return false;
+
+    switch (currentQuest.type) {
+        case 'ACCOUNT_OPENING':
+            return await checkAccountOpeningQuest();
+        case 'TRANSFER_AMOUNT':
+            return await checkTransferAmountQuest(currentQuest);
+        case 'PRODUCT_PURCHASE':
+            return await checkProductPurchaseQuest(currentQuest);
+        case 'DEPOSIT_AMOUNT':
+            return await checkDepositAmountQuest(currentQuest);
+        case 'REFERRAL':
+            return await checkReferralQuest();
+        default:
+            return false;
+    }
+}*/
 
 function showQuestCompletedModal(quest) {
     const modal = createModal('quest-completed-modal');
