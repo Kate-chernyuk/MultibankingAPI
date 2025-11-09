@@ -19,6 +19,7 @@ public class Transaction {
     private Instant valueDateTime;
     private String transactionInformation;
     private BankTransactionCode bankTransactionCode;
+    private BankType bankType;
 
     public boolean isCredit() {
         return "Credit".equalsIgnoreCase(creditDebitIndicator);

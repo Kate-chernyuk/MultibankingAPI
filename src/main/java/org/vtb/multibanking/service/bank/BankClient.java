@@ -1,9 +1,6 @@
 package org.vtb.multibanking.service.bank;
 
-import org.vtb.multibanking.model.Account;
-import org.vtb.multibanking.model.Amount;
-import org.vtb.multibanking.model.BankType;
-import org.vtb.multibanking.model.Product;
+import org.vtb.multibanking.model.*;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -18,4 +15,7 @@ public interface BankClient {
     List<Product> getUserProductList() throws Exception;
     boolean deleteProduct(String agreementId, String repaymentAccountId, BigDecimal repaymentAmount) throws Exception;
     boolean closeAccount(String accountId, String action, String destinationAccountId) throws Exception;
+    List<Card> getCards() throws Exception;
+    Card createCard(String accountNumber, String cardType, String cardName) throws Exception;
+    boolean deleteCard(String cardId) throws Exception;
 }
