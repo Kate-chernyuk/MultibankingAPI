@@ -2490,12 +2490,8 @@ async function handleCompleteQuest(questId) {
             showSuccess('✅ Квест завершен! Обновляем данные...');
             await loadQuests();
             showSuccess('🎉 Квест успешно завершен!');
-        } else {
-            const errorMsg = result?.message || 'Не удалось завершить квест';
-            showError(errorMsg);
         }
     } catch (error) {
-        console.error('💥 Ошибка завершения квеста:', error);
 
         if (error.message.includes('уже завершен') || error.message.includes('already completed') || error.message.includes('Квест уже завершен')) {
             console.log('ℹ️ Квест уже завершен, обновляем данные...');
@@ -2504,19 +2500,6 @@ async function handleCompleteQuest(questId) {
             return;
         }
 
-        if (error.message.includes('Failed to fetch')) {
-            showError('❌ Ошибка соединения с сервером. Проверьте подключение.');
-        } else if (error.message.includes('404') || error.message.includes('не найден')) {
-            showError('🔍 Квест не найден. Обновляем список...');
-            await loadQuests();
-        } else if (error.message.includes('еще не выполнен') || error.message.includes('not completed')) {
-            showError('⏳ Квест еще не выполнен! Продолжайте выполнять условия.');
-        } else if (error.message.includes('Все доступные квесты уже завершены')) {
-            showSuccess('🎉 Все квесты завершены! Ожидайте новые задания.');
-            await loadQuests();
-        } else {
-            showError('❌ Не удалось завершить квест: ' + error.message);
-        }
     }
 }
 
