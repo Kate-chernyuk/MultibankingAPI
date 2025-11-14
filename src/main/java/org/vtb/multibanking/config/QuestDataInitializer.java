@@ -33,7 +33,7 @@ public class QuestDataInitializer implements CommandLineRunner {
         // Free квесты
         QuestEntity transfersQuest = QuestEntity.builder()
                 .title("Надо бы перевести...")
-                .description("Совершите перевод между счетами в 10000 ₽ минимум и получите кэшбэк 3% на рестораны")
+                .description("Совершите перевод между счетами на 10000 ₽ или больше")
                 .questType(QuestType.TRANSFER_AMOUNT)
                 .questDifficulty(QuestDifficulty.BASIC)
                 .conditions(Map.of("min_amount", "10000", "operation_type", "transfer"))
@@ -60,7 +60,7 @@ public class QuestDataInitializer implements CommandLineRunner {
 
         QuestEntity firstProductQuest = QuestEntity.builder()
                 .title("Первый финансовый продукт")
-                .description("Приобретите любой финансовый продукт (вклад или кредит) за 1000 ₽ минимум и получите бонусные баллы")
+                .description("Откройте вклад или кредит на 1000 ₽ или больше")
                 .questType(QuestType.PRODUCT_PURCHASE)
                 .questDifficulty(QuestDifficulty.BASIC)
                 .conditions(Map.of(
@@ -92,7 +92,7 @@ public class QuestDataInitializer implements CommandLineRunner {
 
         QuestEntity openAccountQuest = QuestEntity.builder()
                 .title("Откройте новый счёт")
-                .description("Откройте счёт в любом банке и получите скидку 15% у партнёра")
+                .description("Откройте счёт в любом банке")
                 .questType(QuestType.ACCOUNT_OPENING)
                 .questDifficulty(QuestDifficulty.BASIC)
                 .conditions(Map.of("action", "account_opening", "bank_type", "any"))
@@ -119,7 +119,7 @@ public class QuestDataInitializer implements CommandLineRunner {
         // PREMIUM квесты
         QuestEntity vbankAccountQuest = QuestEntity.builder()
                 .title("Откройте счёт в VBank")
-                .description("Откройте счёт в VBank и получите специальные условия")
+                .description("Откройте счёт в VBank")
                 .questType(QuestType.ACCOUNT_OPENING)
                 .questDifficulty(QuestDifficulty.EXCLUSIVE)
                 .conditions(Map.of("action", "account_opening", "bank_type", "VBANK"))
@@ -144,8 +144,8 @@ public class QuestDataInitializer implements CommandLineRunner {
         questRepository.save(vbankAccountQuest);
 
         QuestEntity depositQuest = QuestEntity.builder()
-                .title("Приобретите вклад")
-                .description("Откройте любой вклад и получите бонусные баллы")
+                .title("Откройте вклад")
+                .description("Откройте любой вклад")
                 .questType(QuestType.DEPOSIT_AMOUNT)
                 .questDifficulty(QuestDifficulty.ADVANCED)
                 .conditions(Map.of("action", "deposit_opening", "product_type", "deposit"))
@@ -170,10 +170,10 @@ public class QuestDataInitializer implements CommandLineRunner {
 
         QuestEntity largeTransferQuest = QuestEntity.builder()
                 .title("Крупный перевод")
-                .description("Сделайте перевод на сумму более 10,000 ₽")
+                .description("Сделайте перевод на сумму более 15,000 ₽")
                 .questType(QuestType.TRANSFER_AMOUNT)
                 .questDifficulty(QuestDifficulty.ADVANCED)
-                .conditions(Map.of("min_amount", "10000", "operation_type", "transfer"))
+                .conditions(Map.of("min_amount", "15000", "operation_type", "transfer"))
                 .rewards(Map.of(
                         "questType", "cashback",
                         "value", "5",
@@ -182,7 +182,7 @@ public class QuestDataInitializer implements CommandLineRunner {
                         "prizeName", "Кэшбэк 5% на все покупки"
                 ))
                 .points(10)
-                .minAmount(new BigDecimal("10000"))
+                .minAmount(new BigDecimal("15000"))
                 .maxCompletions(500)
                 .currentCompletions(0)
                 .status(QuestStatus.ACTIVE)
@@ -197,7 +197,7 @@ public class QuestDataInitializer implements CommandLineRunner {
 
         QuestEntity premiumDepositQuest = QuestEntity.builder()
                 .title("Премиум вклад")
-                .description("Пополните вклад на сумму ≥ 50,000 ₽ и получите бесплатный месяц обслуживания")
+                .description("Пополните вклад на сумму ≥ 50,000 ₽")
                 .questType(QuestType.DEPOSIT_AMOUNT)
                 .questDifficulty(QuestDifficulty.EXCLUSIVE)
                 .conditions(Map.of("min_amount", "50000", "product_type", "deposit"))
@@ -223,8 +223,8 @@ public class QuestDataInitializer implements CommandLineRunner {
         questRepository.save(premiumDepositQuest);
 
         QuestEntity loanQuest = QuestEntity.builder()
-                .title("Приобретите кредит")
-                .description("Оформите любой кредитный продукт и получите бонусные баллы")
+                .title("Оформите кредит")
+                .description("Оформите любой кредитный продукт")
                 .questType(QuestType.PRODUCT_PURCHASE)
                 .questDifficulty(QuestDifficulty.ADVANCED)
                 .conditions(Map.of("action", "loan_opening", "product_type", "loan"))
@@ -248,8 +248,8 @@ public class QuestDataInitializer implements CommandLineRunner {
         questRepository.save(loanQuest);
 
         QuestEntity cardQuest = QuestEntity.builder()
-                .title("Приобретите карту")
-                .description("Оформите любую карту и получите бонусные баллы")
+                .title("Откройте новую карту")
+                .description("Оформите любую карту")
                 .questType(QuestType.PRODUCT_PURCHASE)
                 .questDifficulty(QuestDifficulty.ADVANCED)
                 .conditions(Map.of("action", "card_opening", "product_type", "card"))
@@ -271,31 +271,6 @@ public class QuestDataInitializer implements CommandLineRunner {
                 .build();
 
         questRepository.save(cardQuest);
-
-        QuestEntity referralQuest = QuestEntity.builder()
-                .title("Пригласите друга")
-                .description("Пригласите друга в систему и получите 1000 бонусных баллов")
-                .questType(QuestType.REFERRAL)
-                .questDifficulty(QuestDifficulty.EXCLUSIVE)
-                .conditions(Map.of("action", "referral", "min_referrals", "1"))
-                .rewards(Map.of(
-                        "questType", "bonus_points",
-                        "value", "1000",
-                        "category", "referral",
-                        "prizeName", "1000 бонусных баллов"
-                ))
-                .points(15)
-                .maxCompletions(100)
-                .currentCompletions(0)
-                .status(QuestStatus.ACTIVE)
-                .startDate(Instant.now())
-                .endDate(Instant.now().plusSeconds(3600 * 24 * 31))
-                .requiredTier(SubscriptionTier.PREMIUM)
-                .createdAt(Instant.now())
-                .updatedAt(Instant.now())
-                .build();
-
-        questRepository.save(referralQuest);
 
         QuestEntity premiumLargeTransferQuest = QuestEntity.builder()
                 .title("Премиум перевод")
