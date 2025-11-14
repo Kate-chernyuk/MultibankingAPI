@@ -33,7 +33,7 @@ public class QuestDataInitializer implements CommandLineRunner {
         // Free квесты
         QuestEntity transfersQuest = QuestEntity.builder()
                 .title("Надо бы перевести...")
-                .description("Совершите перевод между счетами на 10000 ₽ или больше через нашу платформу")
+                .description("Совершите перевод между счетами на 10 000 ₽ или больше через нашу платформу")
                 .questType(QuestType.TRANSFER_AMOUNT)
                 .questDifficulty(QuestDifficulty.BASIC)
                 .conditions(Map.of("min_amount", "10000", "operation_type", "transfer"))
@@ -170,7 +170,7 @@ public class QuestDataInitializer implements CommandLineRunner {
 
         QuestEntity largeTransferQuest = QuestEntity.builder()
                 .title("Крупный перевод")
-                .description("Сделайте перевод на сумму более 15,000 ₽, используя нашу платформу")
+                .description("Сделайте перевод на сумму более 15 000 ₽, используя нашу платформу")
                 .questType(QuestType.TRANSFER_AMOUNT)
                 .questDifficulty(QuestDifficulty.ADVANCED)
                 .conditions(Map.of("min_amount", "15000", "operation_type", "transfer"))
@@ -197,7 +197,7 @@ public class QuestDataInitializer implements CommandLineRunner {
 
         QuestEntity premiumDepositQuest = QuestEntity.builder()
                 .title("Премиум вклад")
-                .description("Откройте вклад на сумму ≥ 50,000 ₽ при помощи нашей платформы")
+                .description("Откройте вклад на сумму ≥ 50 000 ₽ при помощи нашей платформы")
                 .questType(QuestType.DEPOSIT_AMOUNT)
                 .questDifficulty(QuestDifficulty.EXCLUSIVE)
                 .conditions(Map.of("min_amount", "50000", "product_type", "deposit"))
@@ -274,7 +274,7 @@ public class QuestDataInitializer implements CommandLineRunner {
 
         QuestEntity premiumLargeTransferQuest = QuestEntity.builder()
                 .title("Премиум перевод")
-                .description("Сделайте перевод на сумму более 50,000 ₽, используя нашу платформу")
+                .description("Сделайте перевод на сумму более 50 000 ₽, используя нашу платформу")
                 .questType(QuestType.TRANSFER_AMOUNT)
                 .questDifficulty(QuestDifficulty.EXCLUSIVE)
                 .conditions(Map.of("min_amount", "50000", "operation_type", "transfer"))
