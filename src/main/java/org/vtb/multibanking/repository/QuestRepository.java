@@ -13,15 +13,6 @@ import java.util.List;
 
 @Repository
 public interface QuestRepository extends MongoRepository<QuestEntity, String> {
-    @Query("{ 'status': ?0, 'startDate': { '$lte': ?1 }, 'endDate': { '$gte': ?2 } }")
-    List<QuestEntity> findByStatusAndDateRange(
-            QuestStatus status,
-            Instant startDate,
-            Instant endDate
-    );
-
-    List<QuestEntity> findByQuestTypeAndStatus(QuestType type, QuestStatus status);
-
     List<QuestEntity> findByRequiredTierAndStatus(SubscriptionTier tier, QuestStatus status);
 
     @Query("{ '$and': [ " +
@@ -37,6 +28,4 @@ public interface QuestRepository extends MongoRepository<QuestEntity, String> {
             Instant nowAgain
     );
 
-    @Query("{ 'partnerId': ?0, 'status': 'ACTIVE' }")
-    List<QuestEntity> findByPartnerId(String partnerId);
 }
