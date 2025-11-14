@@ -979,7 +979,9 @@ public abstract class AbstractBankClient implements BankClient {
         card.setCardType(getStringSafe(cardData, "card_type", "cardType"));
         card.setStatus(getStringSafe(cardData, "status"));
         card.setAccountNumber(getStringSafe(cardData, "account_number", "accountNumber"));
+        card.setBalance(new BigDecimal(getStringSafe(cardData, "accountBalance")));
         card.setBankType(getBankType());
+
 
         if (cardData.containsKey("issue_date")) {
             try {
