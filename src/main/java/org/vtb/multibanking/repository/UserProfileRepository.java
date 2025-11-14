@@ -12,10 +12,4 @@ import java.util.Optional;
 @Repository
 public interface UserProfileRepository extends MongoRepository<UserProfileEntity, String> {
     Optional<UserProfileEntity> findByUserId(String userId);
-
-    @Query("{ 'userId': ?0, 'subscriptionTier': 'PREMIUM', 'premiumExpiry': { '$gt': ?1 } }")
-    Optional<UserProfileEntity> findActivePremiumUser(String userId, Instant now);
-
-    @Query(value = "{ 'activityPoints': { '$gte': ?0 } }", sort = "{ 'activityPoints': -1 }")
-    List<UserProfileEntity> findTopUsersByPoints(Integer minPoints);
 }

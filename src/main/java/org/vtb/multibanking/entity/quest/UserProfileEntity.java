@@ -71,7 +71,4 @@ public class UserProfileEntity {
         return activeRewards;
     }
 
-    public void setActiveRewards(List<ActiveReward> activeRewards) {
-        this.activeRewards = activeRewards;
-    }
 }

@@ -40,11 +40,4 @@ public class RewardService {
         Update update = new Update().push("activeRewards", activeReward);
         mongoTemplate.updateFirst(query, update, UserProfileEntity.class);
     }
-
-    public void markRewardAsUsed(String userId, String rewardCode) {
-        Query query = new Query(Criteria.where("userId").is(userId)
-                .and("activeRewards.rewardCode").is(rewardCode));
-        Update update = new Update().set("activeRewards.$.used", true);
-        mongoTemplate.updateFirst(query, update, UserProfileEntity.class);
-    }
 }

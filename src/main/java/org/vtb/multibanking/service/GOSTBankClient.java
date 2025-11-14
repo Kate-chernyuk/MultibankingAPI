@@ -10,14 +10,12 @@ import org.vtb.multibanking.model.mobile.MobileProvider;
 import org.vtb.multibanking.model.mobile.PhoneNumberInfo;
 
 import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.*;
 
 @Slf4j
 public class GOSTBankClient {
-    private final String gostBaseUrl;
+    private final String GOSTBaseUrl;
     private final String authUrl;
     private final String clientId;
     private final String clientSecret;
@@ -26,16 +24,8 @@ public class GOSTBankClient {
     private String currentToken;
     private Instant tokenExpiresAt;
 
-   /* public GOSTBankClient(String gostBaseUrl, String authUrl, String clientId, String clientSecret) {
-        this.gostBaseUrl = gostBaseUrl;
-        this.authUrl = authUrl;
-        this.clientId = clientId;
-        this.clientSecret = clientSecret;
-        this.gostRestTemplate = new RestTemplate();
-    }
-*/
     public GOSTBankClient(GOSTBankClientConfig gostBankClientConfig) {
-        this.gostBaseUrl = gostBankClientConfig.getApi().getGostBaseUrl();
+        this.GOSTBaseUrl = gostBankClientConfig.getApi().getGostBaseUrl();
         this.authUrl = gostBankClientConfig.getApi().getAuthUrl();
         this.clientId = gostBankClientConfig.getApi().getClientId();
         this.clientSecret = gostBankClientConfig.getApi().getClientSecret();
@@ -74,7 +64,7 @@ public class GOSTBankClient {
     }
 
     public List<MobileProduct> getMobileProducts() {
-        String mobileProductsUrl = gostBaseUrl + "/api/rb/pmnt/acceptance/mobile/hackathon/v1/products";
+        String mobileProductsUrl = GOSTBaseUrl + "/api/rb/pmnt/acceptance/mobile/hackathon/v1/products";
 
         Map<String, Object> requestBody = Map.of(
                 "paySum", Map.of(
@@ -114,7 +104,7 @@ public class GOSTBankClient {
     }
 
     public PhoneNumberInfo getInfoAboutPhoneNumber(String number) {
-        String phoneInfoUrl = gostBaseUrl + "/api/rb/pmnt/acceptance/mobile/hackathon/v1/phones/info";
+        String phoneInfoUrl = GOSTBaseUrl + "/api/rb/pmnt/acceptance/mobile/hackathon/v1/phones/info";
 
         Map<Object, String> requestBody = Map.of(
                 "number", number
@@ -181,7 +171,7 @@ public class GOSTBankClient {
             String clientProductType, String mobileNumber,
             BigDecimal amount, String currencyCode
     ) {
-        String requestPaymentUrl = gostBaseUrl + "/api/rb/pmnt/acceptance/mobile/hackathon/v1/payments/request";
+        String requestPaymentUrl = GOSTBaseUrl + "/api/rb/pmnt/acceptance/mobile/hackathon/v1/payments/request";
 
         Map<String, Object> requestBody = Map.of(
                 "serviceProviderId", serviceProviderId,
@@ -224,7 +214,7 @@ public class GOSTBankClient {
     }
 
     public void confirmPayment(String paymentId, String purpose, String code) {
-        String confirmPaymentUrl = gostBaseUrl + "/api/rb/pmnt/acceptance/mobile/hackathon/v1/payments/confirm";
+        String confirmPaymentUrl = GOSTBaseUrl + "/api/rb/pmnt/acceptance/mobile/hackathon/v1/payments/confirm";
 
         Map<String, Object> requestBody = Map.of(
                 "id", paymentId,
@@ -259,7 +249,7 @@ public class GOSTBankClient {
     }
 
     public boolean startPayment(String serviceProviderId) {
-        String startPaymentUrl = gostBaseUrl + "/api/rb/pmnt/acceptance/mobile/hackathon/v1/payments/start";
+        String startPaymentUrl = GOSTBaseUrl + "/api/rb/pmnt/acceptance/mobile/hackathon/v1/payments/start";
 
         Map<String, Object> requestBody = Map.of("serviceProviderId", serviceProviderId);
 
@@ -286,7 +276,7 @@ public class GOSTBankClient {
     }
 
     public Map<String, Object> getPayment(String paymentId) {
-        String getPaymentUrl = gostBaseUrl + "/api/rb/pmnt/acceptance/mobile/hackathon/v1//payments/" + paymentId;
+        String getPaymentUrl = GOSTBaseUrl + "/api/rb/pmnt/acceptance/mobile/hackathon/v1//payments/" + paymentId;
 
         HttpHeaders httpHeaders = new HttpHeaders();
         httpHeaders.setBearerAuth(getGOSTToken());

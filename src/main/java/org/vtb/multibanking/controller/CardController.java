@@ -257,7 +257,7 @@ public class CardController {
         if (card.getCardType() == null) card.setCardType("debit");
         if (card.getStatus() == null) card.setStatus("unknown");
         if (card.getAccountNumber() == null) card.setAccountNumber("N/A");
-        if (card.getBankType() == null) card.setBankType(BankType.VBANK); // или другое значение по умолчанию
+        if (card.getBankType() == null) card.setBankType(BankType.VBANK);
 
         return card;
     }

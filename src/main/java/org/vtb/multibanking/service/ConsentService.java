@@ -126,10 +126,6 @@ public class ConsentService {
         return productConsent;
     }
 
-    public Optional<ProductConsentEntity> getActiveProductConsent(BankType bankType, String clientId) {
-        return productConsentRepository.findActiveConsent(bankType, clientId, Instant.now());
-    }
-
     public boolean checkActiveConsentExpireTime(String consentId) {
         return consentRepository.findByConsentId(consentId).get().isExpired();
     }

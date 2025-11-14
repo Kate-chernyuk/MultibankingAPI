@@ -20,12 +20,4 @@ public class Transaction {
     private String transactionInformation;
     private BankTransactionCode bankTransactionCode;
     private BankType bankType;
-
-    public boolean isCredit() {
-        return "Credit".equalsIgnoreCase(creditDebitIndicator);
-    }
-
-    public boolean isDebit() {
-        return "Debit".equalsIgnoreCase(creditDebitIndicator);
-    }
 }
