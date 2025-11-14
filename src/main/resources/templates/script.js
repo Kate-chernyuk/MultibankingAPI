@@ -395,8 +395,8 @@ async function loadProducts() {
                         type: 'CARD',
                         typeDisplay: 'Карта',
                         name: card.cardName,
-                        amount: 0,
-                        amountRange: '0 ₽',
+                        amount: card.balance,
+                        amountRange: card.balance,
                         rate: '-',
                         status: card.status === 'active' ? 'ACTIVE' : 'INACTIVE',
                         bank: card.bankType,
@@ -445,8 +445,8 @@ async function loadTransactions() {
                     date: new Date(transaction.bookingDateTime),
                     type: 'transaction',
                     description: transaction.transactionInformation || 'Транзакция',
-                    accountId: transaction.accountId, // ID счета из API
-                    accountNumber: account ? account.accountNumber : null, // Номер счета для фильтрации
+                    accountId: transaction.accountId,
+                    accountNumber: account ? account.accountNumber : null,
                     amount: parseFloat(transaction.amount?.amount) || 0,
                     bank: transaction.bankType,
                     currency: transaction.amount?.currency || 'RUB',
@@ -459,7 +459,9 @@ async function loadTransactions() {
             });
 
             console.log('Преобразованные операции:', operationsHistory);
+            updateTransfersCount();
             updateHistoryDisplay();
+            updateInfoBlock()
         }
     } catch (error) {
         console.error('Ошибка загрузки транзакций:', error);
@@ -484,7 +486,6 @@ async function loadQuests() {
                 console.log('✅ Активный квест найден:', infoData.currentQuest);
             } else if (currentQuestData.message && currentQuestData.message.includes('нет активных')) {
                 console.log('ℹ️ У пользователя нет активных квестов');
-                // Проверяем есть ли доступные квесты
                 if (availableQuests && availableQuests.length > 0) {
                     console.log('🎯 Есть доступные квесты, но не назначены');
                     showQuestsAvailableButNotAssigned();
@@ -583,7 +584,7 @@ function updateInfoBlock() {
 
     const questPrizeElement = document.getElementById('questPrize');
     if (questPrizeElement && infoData.currentQuest) {
-        questPrizeElement.textContent = infoData.currentQuest.prize;
+        questPrizeElement.textContent = infoData.currentQuest.rewards.prizeName;
     }
 
     const transfersCountElement = document.getElementById('transfersCount');
@@ -697,7 +698,7 @@ function createProductCard(product) {
     if (isCard) {
         productHTML += `
             <div class="product-card-number">${product.formattedCardNumber || product.cardNumber || 'Номер не указан'}</div>
-            <div class="product-details">Тип: ${product.cardTypeDisplay || product.cardType || 'Карта'}</div>
+            <div class="product-details">Тип: ${product.cardTypeDisplay || getProductTypeDisplay(product.cardType) || 'Карта'}</div>
         `;
     } else {
         productHTML += `
@@ -707,7 +708,7 @@ function createProductCard(product) {
     }
 
     productHTML += `
-        <div class="product-details">Статус: ${getProductStatusDisplay(product.status)}</div>
+        <div class="product-details">Баланс: ${product.amount}</div>
         <div class="product-details">Банк: ${product.bank || 'Не указан'}</div>
     `;
 
@@ -983,11 +984,6 @@ function populateTransferAccounts(excludeAccountId) {
     }
 }
 
-function incrementTransfersCount() {
-    infoData.transfersThisMonth++;
-    updateInfoBlock();
-}
-
 async function processTransfer(fromAccount, toAccount, amount) {
     try {
         const fromAccountData = getAccountByAccountNumber(fromAccount);
@@ -1023,7 +1019,7 @@ async function processTransfer(fromAccount, toAccount, amount) {
 
             resetTransferForm();
 
-            incrementTransfersCount();
+            updateTransfersCount();
 
             return true;
         } else {
@@ -1035,6 +1031,34 @@ async function processTransfer(fromAccount, toAccount, amount) {
         return false;
     }
 }
+
+function updateTransfersCount() {
+    const periodFilter = 'month';
+    const now = new Date();
+
+    let filteredOperations = operationsHistory.filter(operation => {
+
+        if (periodFilter !== 'all') {
+            const operationDate = new Date(operation.date);
+
+            switch (periodFilter) {
+                case 'month':
+                    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                    return operationDate >= monthAgo;
+                default:
+                    return true;
+            }
+        }
+
+        return true;
+    });
+
+    infoData.transfersThisMonth = filteredOperations.length;
+    updateInfoBlock();
+
+    console.log(`Переводов за месяц: ${infoData.transfersThisMonth}`, filteredOperations);
+}
+
 function updateAccountBalance(accountId, newBalance) {
     const account = getAccountById(accountId);
     if (account) {
@@ -1635,10 +1659,8 @@ function initializeProducts() {
 
 function getProductTypeDisplay(type) {
     const typeMap = {
-        'DEPOSIT': 'Вклад',
-        'CREDIT_CARD': 'Кредитная карта',
-        'DEBIT_CARD': 'Дебетовая карта',
-        'SAVING_ACCOUNT': 'Накопительный счет'
+        'credit': 'Кредитная',
+        'debit': 'Дебетовая',
     };
     return typeMap[type] || type;
 }
@@ -1826,7 +1848,6 @@ function renderHistory(operations) {
             minute: '2-digit'
         });
 
-        // Получаем информацию о счете
         let accountDisplay = '';
         let bankDisplay = '';
 
@@ -1847,9 +1868,16 @@ function renderHistory(operations) {
             bankDisplay = operation.bank || 'Неизвестный банк';
         }
 
+        let amountSign = '';
         let amountClass = 'neutral';
-        if (operation.amount > 0) amountClass = 'positive';
-        else if (operation.amount < 0) amountClass = 'negative';
+
+        if (operation.creditDebit === 'Credit') {
+            amountSign = '+';
+            amountClass = 'positive';
+        } else if (operation.creditDebit === 'Debit') {
+            amountSign = '-';
+            amountClass = 'negative';
+        }
 
         historyItem.innerHTML = `
             <div class="history-date">
@@ -1864,7 +1892,7 @@ function renderHistory(operations) {
                 <div class="history-account-number">${accountDisplay}</div>
             </div>
             <span class="history-amount ${amountClass}">
-                ${operation.amount > 0 ? '+' : ''}${operation.amount.toLocaleString()} ₽
+                ${amountSign}${operation.amount.toLocaleString()} ₽
             </span>
         `;
 
@@ -2403,28 +2431,6 @@ function calculateTargetProgress(quest) {
         return 1;
     }
     return 1;
-}
-
-function getPrizeDisplayName(quest) {
-    if (quest.rewards && quest.rewards.prizeName) {
-        return quest.rewards.prizeName;
-    }
-
-    const rewards = quest.rewards || {};
-    switch (rewards.questType) {
-        case 'partner_discount':
-            return `Скидка ${rewards.value}% у партнера`;
-        case 'cashback':
-            return `Кэшбэк ${rewards.value}% ${getCategoryDisplay(rewards.category)}`;
-        case 'bonus_points':
-            return `${rewards.value} бонусных баллов`;
-        case 'premium_service':
-            return `Бесплатный ${rewards.duration} обслуживания`;
-        case 'premium_cashback':
-            return `Премиальный кэшбэк ${rewards.value}%`;
-        default:
-            return rewards.questType || 'Награда';
-    }
 }
 
 function getCategoryDisplay(category) {
