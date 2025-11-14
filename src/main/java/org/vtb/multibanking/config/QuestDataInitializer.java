@@ -23,7 +23,7 @@ public class QuestDataInitializer implements CommandLineRunner {
     private final QuestRepository questRepository;
 
     @Override
-    public void run(String... args) throws Exception {
+    public void run(String... args) {
         if (questRepository.count() == 0) {
             initializeSampleQuests();
         }
@@ -33,7 +33,7 @@ public class QuestDataInitializer implements CommandLineRunner {
         // Free квесты
         QuestEntity transfersQuest = QuestEntity.builder()
                 .title("Надо бы перевести...")
-                .description("Совершите перевод между счетами на 10000 ₽ или больше")
+                .description("Совершите перевод между счетами на 10000 ₽ или больше через нашу платформу")
                 .questType(QuestType.TRANSFER_AMOUNT)
                 .questDifficulty(QuestDifficulty.BASIC)
                 .conditions(Map.of("min_amount", "10000", "operation_type", "transfer"))
@@ -60,7 +60,7 @@ public class QuestDataInitializer implements CommandLineRunner {
 
         QuestEntity firstProductQuest = QuestEntity.builder()
                 .title("Первый финансовый продукт")
-                .description("Откройте вклад или кредит на 1000 ₽ или больше")
+                .description("Откройте вклад или кредит на 1000 ₽ или больше, пользуясь нашей платформой")
                 .questType(QuestType.PRODUCT_PURCHASE)
                 .questDifficulty(QuestDifficulty.BASIC)
                 .conditions(Map.of(
@@ -92,7 +92,7 @@ public class QuestDataInitializer implements CommandLineRunner {
 
         QuestEntity openAccountQuest = QuestEntity.builder()
                 .title("Откройте новый счёт")
-                .description("Откройте счёт в любом банке")
+                .description("Откройте счёт в любом банке, используя нашу платформу")
                 .questType(QuestType.ACCOUNT_OPENING)
                 .questDifficulty(QuestDifficulty.BASIC)
                 .conditions(Map.of("action", "account_opening", "bank_type", "any"))
@@ -119,7 +119,7 @@ public class QuestDataInitializer implements CommandLineRunner {
         // PREMIUM квесты
         QuestEntity vbankAccountQuest = QuestEntity.builder()
                 .title("Откройте счёт в VBank")
-                .description("Откройте счёт в VBank")
+                .description("Откройте счёт в VBank при помощи нашей платформы")
                 .questType(QuestType.ACCOUNT_OPENING)
                 .questDifficulty(QuestDifficulty.EXCLUSIVE)
                 .conditions(Map.of("action", "account_opening", "bank_type", "VBANK"))
@@ -145,7 +145,7 @@ public class QuestDataInitializer implements CommandLineRunner {
 
         QuestEntity depositQuest = QuestEntity.builder()
                 .title("Откройте вклад")
-                .description("Откройте любой вклад")
+                .description("Откройте любой вклад через нашу платформу")
                 .questType(QuestType.DEPOSIT_AMOUNT)
                 .questDifficulty(QuestDifficulty.ADVANCED)
                 .conditions(Map.of("action", "deposit_opening", "product_type", "deposit"))
@@ -170,7 +170,7 @@ public class QuestDataInitializer implements CommandLineRunner {
 
         QuestEntity largeTransferQuest = QuestEntity.builder()
                 .title("Крупный перевод")
-                .description("Сделайте перевод на сумму более 15,000 ₽")
+                .description("Сделайте перевод на сумму более 15,000 ₽, используя нашу платформу")
                 .questType(QuestType.TRANSFER_AMOUNT)
                 .questDifficulty(QuestDifficulty.ADVANCED)
                 .conditions(Map.of("min_amount", "15000", "operation_type", "transfer"))
@@ -197,7 +197,7 @@ public class QuestDataInitializer implements CommandLineRunner {
 
         QuestEntity premiumDepositQuest = QuestEntity.builder()
                 .title("Премиум вклад")
-                .description("Пополните вклад на сумму ≥ 50,000 ₽")
+                .description("Откройте вклад на сумму ≥ 50,000 ₽ при помощи нашей платформы")
                 .questType(QuestType.DEPOSIT_AMOUNT)
                 .questDifficulty(QuestDifficulty.EXCLUSIVE)
                 .conditions(Map.of("min_amount", "50000", "product_type", "deposit"))
@@ -224,7 +224,7 @@ public class QuestDataInitializer implements CommandLineRunner {
 
         QuestEntity loanQuest = QuestEntity.builder()
                 .title("Оформите кредит")
-                .description("Оформите любой кредитный продукт")
+                .description("Оформите любой кредитный продукт (но не карту) при помощи нашей платформы")
                 .questType(QuestType.PRODUCT_PURCHASE)
                 .questDifficulty(QuestDifficulty.ADVANCED)
                 .conditions(Map.of("action", "loan_opening", "product_type", "loan"))
@@ -249,7 +249,7 @@ public class QuestDataInitializer implements CommandLineRunner {
 
         QuestEntity cardQuest = QuestEntity.builder()
                 .title("Откройте новую карту")
-                .description("Оформите любую карту")
+                .description("Оформите любую карту при помощи нашей платформы")
                 .questType(QuestType.PRODUCT_PURCHASE)
                 .questDifficulty(QuestDifficulty.ADVANCED)
                 .conditions(Map.of("action", "card_opening", "product_type", "card"))
@@ -274,7 +274,7 @@ public class QuestDataInitializer implements CommandLineRunner {
 
         QuestEntity premiumLargeTransferQuest = QuestEntity.builder()
                 .title("Премиум перевод")
-                .description("Сделайте перевод на сумму более 50,000 ₽")
+                .description("Сделайте перевод на сумму более 50,000 ₽, используя нашу платформу")
                 .questType(QuestType.TRANSFER_AMOUNT)
                 .questDifficulty(QuestDifficulty.EXCLUSIVE)
                 .conditions(Map.of("min_amount", "50000", "operation_type", "transfer"))
